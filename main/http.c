@@ -186,8 +186,8 @@ static esp_err_t cgi_status_header(httpd_req_t *req)
 	}
 
 	snprintf(buffer, sizeof(buffer),
-		"current partition: 0x%08" PRIx32 " %" PRIu8 "\n"
-		"next partition: 0x%08" PRIx32 " %" PRIu8 "\n"
+		"current partition: 0x%08" PRIx32 " %d\n"
+		"next partition: 0x%08" PRIx32 " %d\n"
 		"%s",
 		current_partition->address, current_partition_state, next_partition_address, next_partition_state,
 		update_status);
@@ -268,7 +268,7 @@ static esp_err_t cgi_status(httpd_req_t *req)
 		tsk->ulRunTimeCounter -= last_task_time;
 
 		len = snprintf(buff, sizeof(buff),
-			"\tid: %3u, name: %16s, prio: %3" PRIu8 ", state: %10s, stack_hwm: %5" PRIu32 ", "
+			"\tid: %3u, name: %16s, prio: %3d, state: %10s, stack_hwm: %5" PRIu32 ", "
 #if CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID
 			"core: %3s, "
 #endif
