@@ -85,14 +85,15 @@ int32_t adc_read_system_voltage(void)
 	}
 
 	ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, ADC_CHANNEL, &adc_reading));
-	ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Data: %d", ADC_UNIT + 1, ADC_CHANNEL, adc_reading);
+	// ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Data: %d", ADC_UNIT + 1, ADC_CHANNEL, adc_reading);
 	// ESP_LOGD(TAG, "raw  data: %d", adc_reading);
 
 	ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc_cali_handle, adc_reading, &voltage_reading));
-	ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT + 1, ADC_CHANNEL, voltage_reading);
+	// ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT + 1, ADC_CHANNEL, voltage_reading);
 
-	// Farpatch has a divider that's 82k on top and 20k on the bottom.
-	int adjusted_voltage = (voltage_reading * 51) / 10;
+	// Farpatch has a divider that's 82k on top and 20k on the bottom. We're using 2.5 dB
+	// attenuation, so also multiply it by 1.33 (aka 4/3).
+	int adjusted_voltage = (voltage_reading * 4 * 82) / 20 / 3;
 	ESP_LOGD(TAG, "cal data: %d mV, adjusted: %d mV", voltage_reading, adjusted_voltage);
 
 	return adjusted_voltage;
