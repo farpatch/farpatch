@@ -33,7 +33,6 @@ void traceswo_deinit(void);
 /* set bitmask of swo channels to be decoded */
 void traceswo_setmask(uint32_t mask);
 
-#define DFU_SERIAL_LENGTH 12
 char *serial_no_read(char *s);
 
 #endif

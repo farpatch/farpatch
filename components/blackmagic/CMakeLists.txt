@@ -7,8 +7,11 @@ idf_component_register(
              "blackmagic/src/platforms/common"
              "."
     LDFRAGMENTS "blackmagic.ld"
-    EXCLUDE_SRCS "blackmagic/src/platforms/common/swdptap.c"
-                 "blackmagic/src/platforms/common/cdcacm.c"
+    EXCLUDE_SRCS "blackmagic/src/platforms/common/cdcacm.c"
+                 "blackmagic/src/platforms/common/swdptap.c"
+                 "blackmagic/src/platforms/common/usb_serial.c"
+                 "blackmagic/src/platforms/common/usb_dfu_stub.c"
+                 "blackmagic/src/platforms/common/usb.c"
                  "blackmagic/src/target/jtagtap_generic.c"
                  "blackmagic/src/target/swdptap_generic.c"
                  "blackmagic/src/exception.c"
@@ -23,7 +26,7 @@ idf_component_register(
     PRIV_INCLUDE_DIRS "../../main"
                       "../../main/include"
 )
-add_definitions(-DPROBE_HOST=esp32 -DPC_HOSTED=0 -DNO_LIBOPENCM3=1 -DENABLE_RTT)
+add_definitions(-DPROBE_HOST=esp32 -DPC_HOSTED=0 -DNO_LIBOPENCM3=1 -DENABLE_RTT -DDFU_SERIAL_LENGTH=12)
 component_compile_options(-Wno-error=char-subscripts -Wno-char-subscripts)
 
 #set(ulp_app_name ulp_bmp)
