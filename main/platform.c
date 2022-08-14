@@ -318,6 +318,9 @@ void app_main(void)
 	wifi_manager_start();
 	ESP_LOGI(TAG, "starting web server");
 
+	// There needs to be a small delay after the wifi manager starts in order to
+	// ensure networking is running.
+	vTaskDelay(pdMS_TO_TICKS(200));
 	webserver_start();
 
 	ESP_LOGI(TAG, "initializing platform");

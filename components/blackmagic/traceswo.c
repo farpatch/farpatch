@@ -250,13 +250,13 @@ int swo_active = 0;
 // 	vTaskDelete(NULL);
 // }
 
-char *serial_no_read(char *s)
+char serial_no[DFU_SERIAL_LENGTH];
+void read_serial_number(void)
 {
 	uint64_t chipid;
 	esp_read_mac((uint8_t *)&chipid, ESP_MAC_WIFI_SOFTAP);
-	memset(s, 0, DFU_SERIAL_LENGTH);
-	snprintf(s, DFU_SERIAL_LENGTH - 1, "FP-%06" PRIX32, (uint32_t)chipid);
-	return s;
+	memset(serial_no, 0, DFU_SERIAL_LENGTH);
+	snprintf(serial_no, DFU_SERIAL_LENGTH - 1, "FP-%06" PRIX32, (uint32_t)chipid);
 }
 
 void traceswo_deinit(void)
@@ -274,6 +274,7 @@ void traceswo_deinit(void)
 }
 void traceswo_init(uint32_t baudrate, uint32_t swo_chan_bitmask)
 {
+	read_serial_number();
 	// if (!rx_pid) {
 	// 	ESP_LOGI(TAG, "initializing traceswo");
 	// 	// xTaskCreate(swo_uart_rx_task, "swo_rx_task", 2048, (void *)baudrate, 10, &rx_pid);
