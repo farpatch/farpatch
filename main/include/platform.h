@@ -47,11 +47,11 @@ void platform_set_baud(uint32_t baud);
 #define DEBUG(x, ...)
 #endif
 
-#define SWDIO_MODE_FLOAT()                                                           \
-	do {                                                                             \
+#define SWDIO_MODE_FLOAT()                                                                \
+	do {                                                                                  \
 		/*gpio_ll_output_disable(GPIO_HAL_GET_HW(GPIO_PORT_0), CONFIG_TMS_SWDIO_GPIO); */ \
-		gpio_set_direction(CONFIG_TMS_SWDIO_GPIO, GPIO_MODE_INPUT); \
-		gpio_set_level(CONFIG_TMS_SWDIO_DIR_GPIO, 1);                                \
+		gpio_set_direction(CONFIG_TMS_SWDIO_GPIO, GPIO_MODE_INPUT);                       \
+		gpio_set_level(CONFIG_TMS_SWDIO_DIR_GPIO, 1);                                     \
 	} while (0)
 
 #define SWDIO_MODE_DRIVE()                                                          \
@@ -73,6 +73,7 @@ void platform_set_baud(uint32_t baud);
 		gpio_set_direction(CONFIG_TMS_SWDIO_GPIO, GPIO_MODE_INPUT_OUTPUT); \
 		gpio_set_direction(CONFIG_TCK_SWCLK_GPIO, GPIO_MODE_OUTPUT);       \
 		gpio_set_direction(CONFIG_TMS_SWDIO_DIR_GPIO, GPIO_MODE_OUTPUT);   \
+		gpio_set_level(CONFIG_TMS_SWDIO_DIR_GPIO, 0);                      \
 	} while (0)
 
 #define TMS_PIN CONFIG_TMS_SWDIO_GPIO
@@ -92,9 +93,9 @@ void platform_set_baud(uint32_t baud);
 /*			vTaskDelay(1);                \*/
 /*		}                                 \*/
 
-#define gpio_set(port, pin)               \
-	do {                                  \
-		gpio_set_level(pin, 1);           \
+#define gpio_set(port, pin)     \
+	do {                        \
+		gpio_set_level(pin, 1); \
 	} while (0)
 #define gpio_clear(port, pin)   \
 	do {                        \
