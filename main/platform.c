@@ -279,6 +279,12 @@ bool cmd_setbaud(target *t, int argc, const char **argv)
 	return 1;
 }
 
+/// Enable or disable the clock output pin. This is not configured on
+/// current Farpatch designs, but will be used in a future model.
+void platform_target_clk_output_enable(bool _enabled) {
+	(void)_enabled;
+}
+
 int vprintf_noop(const char *s, va_list va)
 {
 	return 1;
