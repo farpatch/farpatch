@@ -7,7 +7,9 @@ idf_component_register(
              "blackmagic/src/platforms/common"
              "."
     LDFRAGMENTS "blackmagic.ld"
-    EXCLUDE_SRCS "blackmagic/src/platforms/common/cdcacm.c"
+    EXCLUDE_SRCS 
+                 "blackmagic/src/platforms/common/aux_serial.c"
+                 "blackmagic/src/platforms/common/cdcacm.c"
                  "blackmagic/src/platforms/common/jtagtap.c"
                  "blackmagic/src/platforms/common/swdptap.c"
                  "blackmagic/src/platforms/common/usb_serial.c"
