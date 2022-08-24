@@ -258,7 +258,7 @@ int platform_hwversion(void)
 
 void platform_set_baud(uint32_t baud)
 {
-	uart_set_baudrate(CONFIG_TARGET_UART_IDX, baud);
+	uart_set_baudrate(CONFIG_TARGET_UART_IDX, 115200);
 	nvs_set_u32(h_nvs_conf, "uartbaud", baud);
 }
 
