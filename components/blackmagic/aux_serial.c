@@ -2,6 +2,8 @@
 #include <esp_wifi.h>
 #include <esp_mac.h>
 
+char serial_no[DFU_SERIAL_LENGTH];
+
 char *serial_no_read(char *s)
 {
 	uint64_t chipid;
@@ -9,4 +11,9 @@ char *serial_no_read(char *s)
 	memset(s, 0, DFU_SERIAL_LENGTH);
 	snprintf(s, DFU_SERIAL_LENGTH - 1, "FP-%06" PRIX32, (uint32_t)chipid);
     return s;
+}
+
+void read_serial_number(void)
+{
+	serial_no_read(serial_no);
 }
