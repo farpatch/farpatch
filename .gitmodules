@@ -1,6 +1,6 @@
 [submodule "components/blackmagic/blackmagic"]
 	path = components/blackmagic/blackmagic
-	url = https://github.com/blacksphere/blackmagic.git
+	url = https://github.com/blackmagic-debug/blackmagic.git
 [submodule "components/frogfs"]
 	path = components/frogfs
 	url = https://github.com/farpatch/frogfs.git
