@@ -98,11 +98,11 @@ static inline void swclk_low(void)
 static inline void swdio_mode_float(void)
 {
 	gpio_set_direction(CONFIG_TMS_SWDIO_GPIO, GPIO_MODE_INPUT);
-// #if CONFIG_TMS_SWDIO_GPIO < 32
-// 	GPIO.enable_w1tc = (0x1 << CONFIG_TMS_SWDIO_GPIO);
-// #else
-// 	GPIO.enable1_w1tc.data = (0x1 << (CONFIG_TMS_SWDIO_GPIO - 32));
-// #endif
+	// #if CONFIG_TMS_SWDIO_GPIO < 32
+	// 	GPIO.enable_w1tc = (0x1 << CONFIG_TMS_SWDIO_GPIO);
+	// #else
+	// 	GPIO.enable1_w1tc.data = (0x1 << (CONFIG_TMS_SWDIO_GPIO - 32));
+	// #endif
 
 #if CONFIG_TMS_SWDIO_DIR_GPIO < 32
 	GPIO.out_w1ts = (1 << CONFIG_TMS_SWDIO_DIR_GPIO);
@@ -119,11 +119,11 @@ static inline void swdio_mode_drive(void)
 	GPIO.out1_w1tc.data = (1 << (CONFIG_TMS_SWDIO_DIR_GPIO - 32));
 #endif
 
-// #if CONFIG_TMS_SWDIO_GPIO < 32
-// 	GPIO.enable_w1ts = (0x1 << CONFIG_TMS_SWDIO_GPIO);
-// #else
-// 	GPIO.enable1_w1ts.data = (0x1 << (CONFIG_TMS_SWDIO_GPIO - 32));
-// #endif
+	// #if CONFIG_TMS_SWDIO_GPIO < 32
+	// 	GPIO.enable_w1ts = (0x1 << CONFIG_TMS_SWDIO_GPIO);
+	// #else
+	// 	GPIO.enable1_w1ts.data = (0x1 << (CONFIG_TMS_SWDIO_GPIO - 32));
+	// #endif
 	gpio_ll_output_enable(GPIO_HAL_GET_HW(GPIO_PORT_0), CONFIG_TMS_SWDIO_GPIO);
 }
 
@@ -131,6 +131,15 @@ static void swdptap_turnaround(int dir)
 {
 	static int olddir = SWDIO_STATUS_FLOAT;
 	register volatile int32_t cnt;
+
+	// Throw in a sleep every now and then, in order to allow
+	// for other tasks to run.
+	static int rest_counter = 0;
+	rest_counter += 1;
+	if (rest_counter > 1000) {
+		rest_counter = 0;
+		vTaskDelay(1);
+	}
 
 	/* Don't turnaround if direction not changing */
 	if (dir == olddir)
