@@ -230,6 +230,7 @@ static void uart_config(void)
 		.stop_bits = UART_STOP_BITS_1,
 		.flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
 		.rx_flow_ctrl_thresh = 120,
+		.source_clk = UART_SCLK_DEFAULT,
 	};
 	ESP_ERROR_CHECK(uart_driver_install(CONFIG_TARGET_UART_IDX, 4096, 256, 16, &uart_event_queue, ESP_INTR_FLAG_IRAM));
 	ESP_ERROR_CHECK(uart_param_config(CONFIG_TARGET_UART_IDX, &uart_config));
