@@ -40,13 +40,15 @@ int jtagtap_init(void)
 	gpio_reset_pin(CONFIG_TDO_GPIO);
 	gpio_reset_pin(CONFIG_TMS_SWDIO_GPIO);
 	gpio_reset_pin(CONFIG_TCK_SWCLK_GPIO);
-	gpio_reset_pin(CONFIG_TMS_SWDIO_DIR_GPIO);
+	if (CONFIG_TMS_SWDIO_DIR_GPIO >= 0)
+		gpio_reset_pin(CONFIG_TMS_SWDIO_DIR_GPIO);
 
 	gpio_set_direction(CONFIG_TDI_GPIO, GPIO_MODE_OUTPUT);
 	gpio_set_direction(CONFIG_TDO_GPIO, GPIO_MODE_INPUT);
 	gpio_set_direction(CONFIG_TMS_SWDIO_GPIO, GPIO_MODE_OUTPUT);
 	gpio_set_direction(CONFIG_TCK_SWCLK_GPIO, GPIO_MODE_OUTPUT);
-	gpio_set_direction(CONFIG_TMS_SWDIO_DIR_GPIO, GPIO_MODE_OUTPUT);
+	if (CONFIG_TMS_SWDIO_DIR_GPIO >= 0)
+		gpio_set_direction(CONFIG_TMS_SWDIO_DIR_GPIO, GPIO_MODE_OUTPUT);
 
 	TMS_SET_MODE();
 

@@ -1,8 +1,9 @@
 #undef _GNU_SOURCE
 #include_next <general.h>
 
-#ifndef TEST
-#define TEST
+#ifndef __BLACKMAGIC_GENERAL_H__
+#define __BLACKMAGIC_GENERAL_H__
+
 #include <string.h>
 #undef DEBUG_WARN
 #undef DEBUG_INFO
@@ -90,4 +91,9 @@
 #define DEBUG_GDB(x, ...)
 #define DEBUG_TARGET(x, ...)
 #endif
-#endif
+
+/* Use bit-banged GPIO to drive SWD */
+#define SWDPTAP_MODE_GPIO 1
+#define SWDPTAP_MODE_ULP 0
+
+#endif /* __BLACKMAGIC_GENERAL_H__ */

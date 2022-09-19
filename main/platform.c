@@ -105,7 +105,9 @@ void platform_init(void)
 	gpio_reset_pin(CONFIG_TDO_GPIO);
 	gpio_reset_pin(CONFIG_TMS_SWDIO_GPIO);
 	gpio_reset_pin(CONFIG_TCK_SWCLK_GPIO);
+#if CONFIG_TMS_SWDIO_DIR_GPIO >= 0
 	gpio_reset_pin(CONFIG_TMS_SWDIO_DIR_GPIO);
+#endif
 
 	// Reset Button
 	{
@@ -189,6 +191,7 @@ void platform_init(void)
 		gpio_set_level(CONFIG_TDI_GPIO, 1);
 	}
 
+#if CONFIG_TMS_SWDIO_DIR_GPIO >= 0
 	// TMS/SWDIO level shifter direction
 	{
 		const gpio_config_t gpio_conf = {
@@ -201,6 +204,7 @@ void platform_init(void)
 		gpio_config(&gpio_conf);
 		gpio_set_level(CONFIG_TMS_SWDIO_DIR_GPIO, 1);
 	}
+#endif
 }
 
 void platform_buffer_flush(void)
