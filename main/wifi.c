@@ -9,6 +9,8 @@
 #include "wifi_manager.h"
 #include "wifi.h"
 
+extern const char *word_list[];
+
 const static char http_content_type_json[] = "application/json";
 const static char http_cache_control_hdr[] = "Cache-Control";
 const static char http_cache_control_no_cache[] = "no-store, no-cache, must-revalidate, max-age=0";
@@ -20,7 +22,9 @@ void bm_update_wifi_ssid(void)
 {
 	uint64_t chipid;
 	esp_read_mac((uint8_t *)&chipid, ESP_MAC_WIFI_SOFTAP);
-	snprintf((char *)wifi_settings.ap_ssid, sizeof(wifi_settings.ap_ssid) - 1, "Farpatch_%" PRIX32, (uint32_t)chipid);
+	const char *chip_hi = word_list[chipid & 1023];
+	const char *chip_lo = word_list[(chipid >> 10) & 1023];
+	snprintf((char *)wifi_settings.ap_ssid, sizeof(wifi_settings.ap_ssid) - 1, "Farpatch (%s %s)", chip_hi, chip_lo);
 }
 
 void bm_update_wifi_ps(void)
