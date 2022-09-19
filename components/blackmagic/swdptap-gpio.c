@@ -134,7 +134,7 @@ static inline void swdio_mode_drive(void)
 static void swdptap_turnaround(int dir)
 {
 	static int olddir = SWDIO_STATUS_FLOAT;
-	register volatile int32_t cnt;
+	register int32_t cnt;
 
 	// Throw in a sleep every now and then, in order to allow
 	// for other tasks to run.
@@ -170,8 +170,7 @@ static uint32_t swdptap_seq_in(size_t ticks)
 	uint32_t index = 1;
 	uint32_t ret = 0;
 	int len = ticks;
-	register volatile int32_t cnt;
-	// portENTER_CRITICAL();
+	register int32_t cnt;
 	swdptap_turnaround(SWDIO_STATUS_FLOAT);
 	if (swd_delay_cnt) {
 		while (len--) {
@@ -187,7 +186,7 @@ static uint32_t swdptap_seq_in(size_t ticks)
 				;
 		}
 	} else {
-		volatile int res;
+		int res;
 		while (len--) {
 			res = swdio_get();
 			swclk_high();
@@ -209,7 +208,7 @@ static bool swdptap_seq_in_parity(uint32_t *ret, size_t ticks)
 	uint32_t res = 0;
 	bool bit;
 	int len = ticks;
-	register volatile int32_t cnt;
+	register int32_t cnt;
 
 	swdptap_turnaround(SWDIO_STATUS_FLOAT);
 	if (swd_delay_cnt) {
@@ -258,8 +257,7 @@ static void swdptap_seq_out(uint32_t MS, size_t ticks)
 	for (int i = 0; i < ticks; i++)
 		DEBUG("%d", (MS & (1 << i)) ? 1 : 0);
 #endif
-	// portENTER_CRITICAL();
-	register volatile int32_t cnt;
+	register int32_t cnt;
 	swdptap_turnaround(SWDIO_STATUS_DRIVE);
 	swdio_set(MS & 1);
 	if (swd_delay_cnt) {
@@ -290,7 +288,7 @@ static void swdptap_seq_out_parity(uint32_t MS, size_t ticks)
 	for (int i = 0; i < ticks; i++)
 		DEBUG("%d", (MS & (1 << i)) ? 1 : 0);
 #endif
-	register volatile int32_t cnt;
+	register int32_t cnt;
 	swdptap_turnaround(SWDIO_STATUS_DRIVE);
 	swdio_set(MS & 1);
 	MS >>= 1;
