@@ -219,10 +219,7 @@ static void new_gdb_wifi_instance(int sock)
 	memset(instance, 0, sizeof(*instance));
 	instance->sock = sock;
 
-	// Create the task at the IDLE priority, to allow the idle thread to keep
-	// the watchdog happy. This will get preemptively scheduled at the same
-	// priority as the IDLE task.
-	xTaskCreate(gdb_wifi_task, name, 5500, (void *)instance, tskIDLE_PRIORITY + 1, &instance->pid);
+	xTaskCreate(gdb_wifi_task, name, 12000, (void *)instance, tskIDLE_PRIORITY + 1, &instance->pid);
 }
 
 void gdb_net_task(void *arg)
