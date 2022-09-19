@@ -31,120 +31,20 @@
 
 uint32_t swd_delay_cnt = 0;
 
-enum {
+typedef enum swdio_status_e {
 	SWDIO_STATUS_FLOAT = 0,
 	SWDIO_STATUS_DRIVE
-};
-static IRAM_ATTR void swdptap_turnaround(int dir) __attribute__((optimize(3)));
-static IRAM_ATTR uint32_t swdptap_seq_in(size_t ticks) __attribute__((optimize(3)));
-static IRAM_ATTR bool swdptap_seq_in_parity(uint32_t *ret, size_t ticks) __attribute__((optimize(3)));
-static IRAM_ATTR void swdptap_seq_out(uint32_t MS, size_t ticks) __attribute__((optimize(3)));
-static IRAM_ATTR void swdptap_seq_out_parity(uint32_t MS, size_t ticks) __attribute__((optimize(3)));
+} swdio_status_t;
 
-static inline void swdio_high(void)
+static void swdptap_turnaround(swdio_status_t dir) __attribute__((optimize(3)));
+static uint32_t swdptap_seq_in(size_t clock_cycles) __attribute__((optimize(3)));
+static bool swdptap_seq_in_parity(uint32_t *ret, size_t clock_cycles) __attribute__((optimize(3)));
+static void swdptap_seq_out(uint32_t tms_states, size_t clock_cycles) __attribute__((optimize(3)));
+static void swdptap_seq_out_parity(uint32_t tms_states, size_t clock_cycles) __attribute__((optimize(3)));
+
+static void swdptap_turnaround(const swdio_status_t dir)
 {
-#if SWDIO_PIN < 32
-	GPIO.out_w1ts = (1 << SWDIO_PIN);
-#else
-	GPIO.out1_w1ts.data = (1 << (SWDIO_PIN - 32));
-#endif
-}
-
-static inline void swdio_low(void)
-{
-#if SWDIO_PIN < 32
-	GPIO.out_w1tc = (1 << SWDIO_PIN);
-#else
-	GPIO.out1_w1tc.data = (1 << (SWDIO_PIN - 32));
-#endif
-}
-
-static inline void swdio_set(uint32_t val)
-{
-	if (val) {
-		swdio_high();
-	} else {
-		swdio_low();
-	}
-}
-
-static inline uint32_t swdio_get(void)
-{
-#if SWDIO_PIN < 32
-	return GPIO.in & (1 << SWDIO_PIN);
-#else
-	return GPIO.in1.data & (1 << (SWDIO_PIN - 32));
-#endif
-}
-
-static inline void swclk_high(void)
-{
-#if SWCLK_PIN < 32
-	GPIO.out_w1ts = (1 << SWCLK_PIN);
-#else
-	GPIO.out1_w1ts.data = (1 << (SWCLK_PIN - 32));
-#endif
-}
-
-static inline void swclk_low(void)
-{
-#if SWCLK_PIN < 32
-	GPIO.out_w1tc = (1 << SWCLK_PIN);
-#else
-	GPIO.out1_w1tc.data = (1 << (SWCLK_PIN - 32));
-#endif
-}
-
-static inline void swdio_mode_float(void)
-{
-	gpio_set_direction(CONFIG_TMS_SWDIO_GPIO, GPIO_MODE_INPUT);
-	// #if CONFIG_TMS_SWDIO_GPIO < 32
-	// 	GPIO.enable_w1tc = (0x1 << CONFIG_TMS_SWDIO_GPIO);
-	// #else
-	// 	GPIO.enable1_w1tc.data = (0x1 << (CONFIG_TMS_SWDIO_GPIO - 32));
-	// #endif
-
-#if CONFIG_TMS_SWDIO_DIR_GPIO < 0
-	// Do nothing if the DIR GPIO is -1
-#elif CONFIG_TMS_SWDIO_DIR_GPIO < 32
-	GPIO.out_w1ts = (1 << CONFIG_TMS_SWDIO_DIR_GPIO);
-#else
-	GPIO.out1_w1ts.data = (1 << (CONFIG_TMS_SWDIO_DIR_GPIO - 32));
-#endif
-}
-
-static inline void swdio_mode_drive(void)
-{
-#if CONFIG_TMS_SWDIO_DIR_GPIO < 0
-	// Do nothing if the DIR GPIO is -1
-#elif CONFIG_TMS_SWDIO_DIR_GPIO < 32
-	GPIO.out_w1tc = (1 << CONFIG_TMS_SWDIO_DIR_GPIO);
-#else
-	GPIO.out1_w1tc.data = (1 << (CONFIG_TMS_SWDIO_DIR_GPIO - 32));
-#endif
-
-	// #if CONFIG_TMS_SWDIO_GPIO < 32
-	// 	GPIO.enable_w1ts = (0x1 << CONFIG_TMS_SWDIO_GPIO);
-	// #else
-	// 	GPIO.enable1_w1ts.data = (0x1 << (CONFIG_TMS_SWDIO_GPIO - 32));
-	// #endif
-	gpio_ll_output_enable(GPIO_HAL_GET_HW(GPIO_PORT_0), CONFIG_TMS_SWDIO_GPIO);
-}
-
-static void swdptap_turnaround(int dir)
-{
-	static int olddir = SWDIO_STATUS_FLOAT;
-	register volatile int32_t cnt;
-
-	// Throw in a sleep every now and then, in order to allow
-	// for other tasks to run.
-	static int rest_counter = 0;
-	rest_counter += 1;
-	if (rest_counter > 1000) {
-		rest_counter = 0;
-		vTaskDelay(1);
-	}
-
+	static swdio_status_t olddir = SWDIO_STATUS_FLOAT;
 	/* Don't turnaround if direction not changing */
 	if (dir == olddir)
 		return;
@@ -153,198 +53,136 @@ static void swdptap_turnaround(int dir)
 #ifdef DEBUG_SWD_BITS
 	DEBUG("%s", dir ? "\n-> " : "\n<- ");
 #endif
+
 	if (dir == SWDIO_STATUS_FLOAT)
-		swdio_mode_float();
-	swclk_high();
-	for (cnt = swd_delay_cnt; --cnt > 0;)
-		;
-	swclk_low();
-	for (cnt = swd_delay_cnt; --cnt > 0;)
-		;
+		SWDIO_MODE_FLOAT();
+	gpio_set(SWCLK_PORT, SWCLK_PIN);
+	for (volatile int32_t cnt = swd_delay_cnt; --cnt > 0;)
+		continue;
+	gpio_clear(SWCLK_PORT, SWCLK_PIN);
+	for (volatile int32_t cnt = swd_delay_cnt; --cnt > 0;)
+		continue;
 	if (dir == SWDIO_STATUS_DRIVE)
-		swdio_mode_drive();
+		SWDIO_MODE_DRIVE();
 }
 
-static uint32_t swdptap_seq_in(size_t ticks)
+static uint32_t swdptap_seq_in_swd_delay(size_t clock_cycles) __attribute__((optimize(3)));
+static uint32_t swdptap_seq_in_swd_delay(const size_t clock_cycles)
 {
-	uint32_t index = 1;
-	uint32_t ret = 0;
-	int len = ticks;
-	register volatile int32_t cnt;
-	// portENTER_CRITICAL();
-	swdptap_turnaround(SWDIO_STATUS_FLOAT);
-	if (swd_delay_cnt) {
-		while (len--) {
-			int res;
-			res = swdio_get();
-			swclk_high();
-			for (cnt = swd_delay_cnt; --cnt > 0;)
-				;
-			ret |= (res) ? index : 0;
-			index <<= 1;
-			swclk_low();
-			for (cnt = swd_delay_cnt; --cnt > 0;)
-				;
-		}
-	} else {
-		volatile int res;
-		while (len--) {
-			res = swdio_get();
-			swclk_high();
-			ret |= (res) ? index : 0;
-			index <<= 1;
-			swclk_low();
-		}
+	uint32_t value = 0;
+	for (size_t cycle = 0; cycle < clock_cycles;) {
+		if (gpio_get(SWDIO_PORT, SWDIO_PIN))
+			value |= (1U << cycle);
+		gpio_set(SWCLK_PORT, SWCLK_PIN);
+		for (volatile int32_t cnt = swd_delay_cnt - 2; cnt > 0; cnt--)
+			continue;
+		++cycle;
+		gpio_clear(SWCLK_PORT, SWCLK_PIN);
+		for (volatile int32_t cnt = swd_delay_cnt - 2; cnt > 0; cnt--)
+			continue;
 	}
-#ifdef DEBUG_SWD_BITS
-	for (int i = 0; i < len; i++)
-		DEBUG("%d", (ret & (1 << i)) ? 1 : 0);
-#endif
-	return ret;
+	return value;
 }
 
-static bool swdptap_seq_in_parity(uint32_t *ret, size_t ticks)
+static uint32_t swdptap_seq_in_no_delay(size_t clock_cycles) __attribute__((optimize(3)));
+static uint32_t swdptap_seq_in_no_delay(const size_t clock_cycles)
 {
-	uint32_t index = 1;
-	uint32_t res = 0;
-	bool bit;
-	int len = ticks;
-	register volatile int32_t cnt;
-
-	swdptap_turnaround(SWDIO_STATUS_FLOAT);
-	if (swd_delay_cnt) {
-		while (len--) {
-			bit = swdio_get();
-			swclk_high();
-			for (cnt = swd_delay_cnt; --cnt > 0;)
-				;
-			res |= (bit) ? index : 0;
-			index <<= 1;
-			swclk_low();
-			for (cnt = swd_delay_cnt; --cnt > 0;)
-				;
-		}
-	} else {
-		while (len--) {
-			bit = swdio_get();
-			swclk_high();
-			res |= (bit) ? index : 0;
-			index <<= 1;
-			swclk_low();
-		}
+	uint32_t value = 0;
+	for (size_t cycle = 0; cycle < clock_cycles;) {
+		if (gpio_get(SWDIO_PORT, SWDIO_PIN))
+			value |= (1U << cycle);
+		gpio_set(SWCLK_PORT, SWCLK_PIN);
+		++cycle;
+		gpio_clear(SWCLK_PORT, SWCLK_PIN);
 	}
-	int parity = __builtin_popcount(res);
-	bit = swdio_get();
-	swclk_high();
-	for (cnt = swd_delay_cnt; --cnt > 0;)
-		;
-	parity += (bit) ? 1 : 0;
-	swclk_low();
-	for (cnt = swd_delay_cnt; --cnt > 0;)
-		;
-#ifdef DEBUG_SWD_BITS
-	for (int i = 0; i < len; i++)
-		DEBUG("%d", (res & (1 << i)) ? 1 : 0);
-#endif
-	*ret = res;
+	return value;
+}
+
+static uint32_t swdptap_seq_in(size_t clock_cycles)
+{
+	swdptap_turnaround(SWDIO_STATUS_FLOAT);
+	if (swd_delay_cnt)
+		return swdptap_seq_in_swd_delay(clock_cycles);
+	else // NOLINT(readability-else-after-return)
+		return swdptap_seq_in_no_delay(clock_cycles);
+}
+
+static bool swdptap_seq_in_parity(uint32_t *ret, size_t clock_cycles)
+{
+	const uint32_t result = swdptap_seq_in(clock_cycles);
+
+	int parity = __builtin_popcount(result);
+	const bool bit = gpio_get(SWDIO_PORT, SWDIO_PIN);
+	gpio_set(SWCLK_PORT, SWCLK_PIN);
+	for (volatile int32_t cnt = swd_delay_cnt - 2; cnt > 0; cnt--)
+		continue;
+	parity += bit ? 1 : 0;
+	gpio_clear(SWCLK_PORT, SWCLK_PIN);
+	for (volatile int32_t cnt = swd_delay_cnt - 2; cnt > 0; cnt--)
+		continue;
+	*ret = result;
 	/* Terminate the read cycle now */
 	swdptap_turnaround(SWDIO_STATUS_DRIVE);
-	return (parity & 1);
+	return parity & 1;
 }
 
-static void swdptap_seq_out(uint32_t MS, size_t ticks)
+static void swdptap_seq_out_swd_delay(uint32_t tms_states, size_t clock_cycles) __attribute__((optimize(3)));
+static void swdptap_seq_out_swd_delay(const uint32_t tms_states, const size_t clock_cycles)
 {
-#ifdef DEBUG_SWD_BITS
-	for (int i = 0; i < ticks; i++)
-		DEBUG("%d", (MS & (1 << i)) ? 1 : 0);
-#endif
-	// portENTER_CRITICAL();
-	register volatile int32_t cnt;
-	swdptap_turnaround(SWDIO_STATUS_DRIVE);
-	swdio_set(MS & 1);
-	if (swd_delay_cnt) {
-		while (ticks--) {
-			swclk_high();
-			for (cnt = swd_delay_cnt; --cnt > 0;)
-				;
-			MS >>= 1;
-			swdio_set(MS & 1);
-			swclk_low();
-			for (cnt = swd_delay_cnt; --cnt > 0;)
-				;
-		}
-	} else {
-		while (ticks--) {
-			swclk_high();
-			MS >>= 1;
-			swdio_set(MS & 1);
-			swclk_low();
-		}
+	for (size_t cycle = 0; cycle < clock_cycles;) {
+		++cycle;
+		gpio_set(SWCLK_PORT, SWCLK_PIN);
+		for (volatile int32_t cnt = swd_delay_cnt - 2; cnt > 0; cnt--)
+			continue;
+		gpio_set_val(SWDIO_PORT, SWDIO_PIN, tms_states & (1 << cycle));
+		gpio_clear(SWCLK_PORT, SWCLK_PIN);
+		for (volatile int32_t cnt = swd_delay_cnt - 2; cnt > 0; cnt--)
+			continue;
 	}
 }
 
-static void swdptap_seq_out_parity(uint32_t MS, size_t ticks)
+static void swdptap_seq_out_no_delay(uint32_t tms_states, size_t clock_cycles) __attribute__((optimize(3)));
+static void swdptap_seq_out_no_delay(const uint32_t tms_states, const size_t clock_cycles)
 {
-	int parity = __builtin_popcount(MS);
-#ifdef DEBUG_SWD_BITS
-	for (int i = 0; i < ticks; i++)
-		DEBUG("%d", (MS & (1 << i)) ? 1 : 0);
-#endif
-	register volatile int32_t cnt;
-	swdptap_turnaround(SWDIO_STATUS_DRIVE);
-	swdio_set(MS & 1);
-	MS >>= 1;
-	if (swd_delay_cnt) {
-		while (ticks--) {
-			swclk_high();
-			for (cnt = swd_delay_cnt; --cnt > 0;)
-				;
-			swdio_set(MS & 1);
-			MS >>= 1;
-			swclk_low();
-			for (cnt = swd_delay_cnt; --cnt > 0;)
-				;
-		}
-	} else {
-		while (ticks--) {
-			swclk_high();
-			swdio_set(MS & 1);
-			MS >>= 1;
-			swclk_low();
-		}
+	for (size_t cycle = 0; cycle < clock_cycles;) {
+		++cycle;
+		gpio_set(SWCLK_PORT, SWCLK_PIN);
+		gpio_set_val(SWDIO_PORT, SWDIO_PIN, tms_states & (1 << cycle));
+		gpio_clear(SWCLK_PORT, SWCLK_PIN);
 	}
-	gpio_set_val(SWDIO_PORT, SWDIO_PIN, parity & 1);
-	swclk_high();
-	for (cnt = swd_delay_cnt; --cnt > 0;)
-		;
-	swclk_low();
-	for (cnt = swd_delay_cnt; --cnt > 0;)
-		;
+}
+
+static void swdptap_seq_out(const uint32_t tms_states, const size_t clock_cycles)
+{
+	swdptap_turnaround(SWDIO_STATUS_DRIVE);
+	gpio_set_val(SWDIO_PORT, SWDIO_PIN, tms_states & 1U);
+	if (swd_delay_cnt)
+		swdptap_seq_out_swd_delay(tms_states, clock_cycles);
+	else
+		swdptap_seq_out_no_delay(tms_states, clock_cycles);
+}
+
+static void swdptap_seq_out_parity(const uint32_t tms_states, const size_t clock_cycles)
+{
+	int parity = __builtin_popcount(tms_states);
+	swdptap_seq_out(tms_states, clock_cycles);
+	gpio_set_val(SWDIO_PORT, SWDIO_PIN, parity & 1U);
+	gpio_set(SWCLK_PORT, SWCLK_PIN);
+	for (volatile int32_t cnt = swd_delay_cnt - 2; cnt > 0; cnt--)
+		continue;
+	gpio_clear(SWCLK_PORT, SWCLK_PIN);
+	for (volatile int32_t cnt = swd_delay_cnt - 2; cnt > 0; cnt--)
+		continue;
 }
 
 int swdptap_init(ADIv5_DP_t *dp)
 {
-	dp->seq_in = swdptap_seq_in;
-	dp->seq_in_parity = swdptap_seq_in_parity;
+	dp->seq_in  = swdptap_seq_in;
+	dp->seq_in_parity  = swdptap_seq_in_parity;
 	dp->seq_out = swdptap_seq_out;
-	dp->seq_out_parity = swdptap_seq_out_parity;
+	dp->seq_out_parity  = swdptap_seq_out_parity;
 
-	gpio_reset_pin(CONFIG_TDI_GPIO);
-	gpio_reset_pin(CONFIG_TDO_GPIO);
-	gpio_reset_pin(CONFIG_TMS_SWDIO_GPIO);
-	gpio_reset_pin(CONFIG_TCK_SWCLK_GPIO);
-#if CONFIG_TMS_SWDIO_DIR_GPIO >= 0
-	gpio_reset_pin(CONFIG_TMS_SWDIO_DIR_GPIO);
-#endif
-
-	gpio_set_direction(CONFIG_TDI_GPIO, GPIO_MODE_OUTPUT);
-	gpio_set_direction(CONFIG_TDO_GPIO, GPIO_MODE_INPUT);
-	gpio_set_direction(CONFIG_TMS_SWDIO_GPIO, GPIO_MODE_OUTPUT);
-	gpio_set_direction(CONFIG_TCK_SWCLK_GPIO, GPIO_MODE_OUTPUT);
-#if CONFIG_TMS_SWDIO_DIR_GPIO >= 0
-	gpio_set_direction(CONFIG_TMS_SWDIO_DIR_GPIO, GPIO_MODE_OUTPUT);
-	gpio_set_level(CONFIG_TMS_SWDIO_DIR_GPIO, 0);
-#endif
 	return 0;
 }
+
 #endif
