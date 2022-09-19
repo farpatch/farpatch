@@ -51,29 +51,34 @@ void platform_set_baud(uint32_t baud);
 	do {                                                                                  \
 		/*gpio_ll_output_disable(GPIO_HAL_GET_HW(GPIO_PORT_0), CONFIG_TMS_SWDIO_GPIO); */ \
 		gpio_set_direction(CONFIG_TMS_SWDIO_GPIO, GPIO_MODE_INPUT);                       \
-		gpio_set_level(CONFIG_TMS_SWDIO_DIR_GPIO, 1);                                     \
+		if (CONFIG_TMS_SWDIO_DIR_GPIO >= 0)                                               \
+			gpio_set_level(CONFIG_TMS_SWDIO_DIR_GPIO, 1);                                 \
 	} while (0)
 
 #define SWDIO_MODE_DRIVE()                                                          \
 	do {                                                                            \
-		gpio_set_level(CONFIG_TMS_SWDIO_DIR_GPIO, 0);                               \
+		if (CONFIG_TMS_SWDIO_DIR_GPIO >= 0)                                         \
+			gpio_set_level(CONFIG_TMS_SWDIO_DIR_GPIO, 0);                           \
 		gpio_ll_output_enable(GPIO_HAL_GET_HW(GPIO_PORT_0), CONFIG_TMS_SWDIO_GPIO); \
 	} while (0)
 
-#define TMS_SET_MODE()                                                     \
-	do {                                                                   \
-		gpio_reset_pin(CONFIG_TDI_GPIO);                                   \
-		gpio_reset_pin(CONFIG_TDO_GPIO);                                   \
-		gpio_reset_pin(CONFIG_TMS_SWDIO_GPIO);                             \
-		gpio_reset_pin(CONFIG_TCK_SWCLK_GPIO);                             \
-		gpio_reset_pin(CONFIG_TMS_SWDIO_DIR_GPIO);                         \
-                                                                           \
-		gpio_set_direction(CONFIG_TDI_GPIO, GPIO_MODE_OUTPUT);             \
-		gpio_set_direction(CONFIG_TDO_GPIO, GPIO_MODE_INPUT);              \
-		gpio_set_direction(CONFIG_TMS_SWDIO_GPIO, GPIO_MODE_INPUT_OUTPUT); \
-		gpio_set_direction(CONFIG_TCK_SWCLK_GPIO, GPIO_MODE_OUTPUT);       \
-		gpio_set_direction(CONFIG_TMS_SWDIO_DIR_GPIO, GPIO_MODE_OUTPUT);   \
-		gpio_set_level(CONFIG_TMS_SWDIO_DIR_GPIO, 0);                      \
+#define TMS_SET_MODE()                                                       \
+	do {                                                                     \
+		gpio_reset_pin(CONFIG_TDI_GPIO);                                     \
+		gpio_reset_pin(CONFIG_TDO_GPIO);                                     \
+		gpio_reset_pin(CONFIG_TMS_SWDIO_GPIO);                               \
+		gpio_reset_pin(CONFIG_TCK_SWCLK_GPIO);                               \
+		if (CONFIG_TMS_SWDIO_DIR_GPIO >= 0)                                  \
+			gpio_reset_pin(CONFIG_TMS_SWDIO_DIR_GPIO);                       \
+                                                                             \
+		gpio_set_direction(CONFIG_TDI_GPIO, GPIO_MODE_OUTPUT);               \
+		gpio_set_direction(CONFIG_TDO_GPIO, GPIO_MODE_INPUT);                \
+		gpio_set_direction(CONFIG_TMS_SWDIO_GPIO, GPIO_MODE_INPUT_OUTPUT);   \
+		gpio_set_direction(CONFIG_TCK_SWCLK_GPIO, GPIO_MODE_OUTPUT);         \
+		if (CONFIG_TMS_SWDIO_DIR_GPIO >= 0)                                  \
+			gpio_set_direction(CONFIG_TMS_SWDIO_DIR_GPIO, GPIO_MODE_OUTPUT); \
+		if (CONFIG_TMS_SWDIO_DIR_GPIO >= 0)                                  \
+			gpio_set_level(CONFIG_TMS_SWDIO_DIR_GPIO, 0);                    \
 	} while (0)
 
 #define TMS_PIN CONFIG_TMS_SWDIO_GPIO

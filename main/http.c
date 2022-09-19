@@ -61,7 +61,7 @@ static esp_err_t cgi_baud(httpd_req_t *req)
 	}
 
 	uint32_t baud = 0;
-	uart_get_baudrate(0, &baud);
+	uart_get_baudrate(CONFIG_TARGET_UART_IDX, &baud);
 
 	len = snprintf(buff, sizeof(buff), "{\"baudrate\": %lu }", baud);
 	httpd_resp_set_type(req, "text/json");
@@ -120,15 +120,13 @@ static esp_err_t cgi_status_header(httpd_req_t *req)
 {
 	char buffer[256];
 
-	uint32_t esp_debug_baud = 0;
 	uint32_t target_baud = 0;
 	uint32_t swo_baud = 0;
-	uart_get_baudrate(0, &esp_debug_baud);
 	uart_get_baudrate(1, &target_baud);
-	// 	extern int swo_active;
-	// 	if (swo_active) {
-	// 		uart_get_baudrate(2, &baud2);
-	// 	}
+	extern int swo_active;
+	if (swo_active) {
+		uart_get_baudrate(2, &swo_baud);
+	}
 
 	snprintf(buffer, sizeof(buffer),
 		"free_heap: %" PRIu32 "\n"
@@ -137,10 +135,9 @@ static esp_err_t cgi_status_header(httpd_req_t *req)
 	httpd_resp_sendstr_chunk(req, buffer);
 
 	snprintf(buffer, sizeof(buffer),
-		"debug_baud_rate: %" PRIu32 "\n"
 		"target_baud_rate: %" PRIu32 "\n"
 		"swo_baud_rate: %" PRIu32 "\n",
-		esp_debug_baud, target_baud, swo_baud);
+		target_baud, swo_baud);
 	httpd_resp_sendstr_chunk(req, buffer);
 
 	snprintf(buffer, sizeof(buffer), "target voltage: %" PRIu32 " mV\n", adc_read_system_voltage());
