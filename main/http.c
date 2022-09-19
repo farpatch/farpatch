@@ -61,7 +61,7 @@ static esp_err_t cgi_baud(httpd_req_t *req)
 	}
 
 	uint32_t baud = 0;
-	uart_get_baudrate(0, &baud);
+	uart_get_baudrate(CONFIG_TARGET_UART_IDX, &baud);
 
 	len = snprintf(buff, sizeof(buff), "{\"baudrate\": %lu }", baud);
 	httpd_resp_set_type(req, "text/json");
