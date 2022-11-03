@@ -86,7 +86,7 @@ esp_err_t cgi_rtt_status(httpd_req_t *req)
 	if (ESP_OK == httpd_query_key_value(buff, "channel", value_string, sizeof(value_string))) {
 		// Disable all channels.
 		for (uint32_t i = 0; i < MAX_RTT_CHAN; i++)
-			rtt_channel[i].is_enabled = false;
+			rtt_channel_enabled[i] = false;
 		if (!strcasecmp(value_string, "auto")) {
 			rtt_auto_channel = true;
 		} else {
@@ -96,7 +96,7 @@ esp_err_t cgi_rtt_status(httpd_req_t *req)
 			while (chan_ptr[0] != '\0') {
 				int chan = strtoul(chan_ptr, &chan_ptr, 0);
 				if ((chan >= 0) && (chan < MAX_RTT_CHAN))
-					rtt_channel[chan].is_enabled = true;
+					rtt_channel_enabled[chan] = true;
 
 				// Advance to the next digit in the string, e.g.
 				// channel=1,2,3,4
@@ -110,14 +110,14 @@ esp_err_t cgi_rtt_status(httpd_req_t *req)
 
 	int channel_count = 0;
 	for (uint32_t i = 0; i < MAX_RTT_CHAN; i++) {
-		if (rtt_channel[i].is_enabled) {
+		if (rtt_channel_enabled[i]) {
 			channel_count += 1;
 		}
 	}
 	int len = 0;
 	value_string[0] = '\0';
 	for (uint32_t i = 0; (i < MAX_RTT_CHAN) && channel_count; i++) {
-		if (rtt_channel[i].is_enabled) {
+		if (rtt_channel_enabled[i]) {
 			len += snprintf(value_string + len, sizeof(value_string) - len, PRId32, i);
 			// Append a ',' if this isn't the last character
 			if (channel_count > 1) {
