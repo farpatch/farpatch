@@ -11,6 +11,7 @@
 #include <freertos/list.h>
 #include "platform.h"
 #include "hashmap.h"
+#include "ota-http.h"
 #include "websocket.h"
 #include "wifi.h"
 #include "driver/uart.h"
@@ -403,7 +404,29 @@ static const httpd_uri_t basic_handlers[] = {
 		.handler = cgi_redirect,
 		.user_ctx = (void *)"/wifi.html",
 	},
-	// {
+
+	// OTA updates
+	{
+		.uri = "/flash",
+		.method = HTTP_GET,
+		.handler = cgi_redirect,
+		.user_ctx = (void *)"/flash/",
+	},
+	{
+		.uri = "/flash/init",
+		.method = HTTP_GET,
+		.handler = cgi_flash_init,
+	},
+	{
+		.uri = "/flash/upload",
+		.method = HTTP_POST,
+		.handler = cgi_flash_upload,
+	},
+	{
+		.uri = "/flash/reboot",
+		.method = HTTP_GET,
+		.handler = cgi_flash_reboot,
+	}, // {
 	// 	.uri = "/flash/?",
 	// 	.method = HTTP_GET,
 	// 	.handler = cgi_redirect,
@@ -412,8 +435,7 @@ static const httpd_uri_t basic_handlers[] = {
 	// {"/flash/next", cgiGetFirmwareNext, &uploadParams, 0}, {"/flash/upload", cgiUploadFirmware, &uploadParams, 0},
 	// {"/flash/reboot", cgiRebootFirmware, NULL, 0},
 
-	// Routines to make the /wifi URL and everything beneath it work.
-	//
+	// UART configuration
 	{
 		.uri = "/uart/baud",
 		.handler = cgi_baud,
@@ -425,16 +447,18 @@ static const httpd_uri_t basic_handlers[] = {
 		.method = HTTP_GET,
 	},
 	{
-		.uri = "/status",
-		.method = HTTP_GET,
-		.handler = cgi_status,
-	},
-	{
 		.uri = "/ws/uart",
 		.method = HTTP_GET,
 		.handler = cgi_websocket,
 		.user_ctx = (void *)&uart_websocket,
 		.is_websocket = true,
+	},
+
+	// Various status pages
+	{
+		.uri = "/status",
+		.method = HTTP_GET,
+		.handler = cgi_status,
 	},
 	{
 		.uri = "/ws/debug",
