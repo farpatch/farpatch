@@ -24,7 +24,7 @@
 
 /* Example usage:
  *
- * volatile struct exception e;
+ * volatile exception_s e;
  * TRY_CATCH (e, EXCEPTION_TIMEOUT) {
  *    ...
  *    raise_exception(EXCEPTION_TIMEOUT, "Timeout occurred");
@@ -39,15 +39,17 @@
  * Can't use break, return, goto, etc from inside the TRY_CATCH block.
  */
 
-#ifndef __EXCEPTION_H
-#define __EXCEPTION_H
+#ifndef INCLUDE_FARPATCH_EXCEPTION_H
+#define INCLUDE_FARPATCH_EXCEPTION_H
 
 #include <setjmp.h>
 #include <stdint.h>
 
-#define EXCEPTION_ERROR   0x01
-#define EXCEPTION_TIMEOUT 0x02
-#define EXCEPTION_ALL     -1
+#define EXCEPTION_ERROR   0x01U
+#define EXCEPTION_TIMEOUT 0x02U
+#define EXCEPTION_ALL     (-1)
+
+typedef struct exception exception_s;
 
 struct exception {
 	uint32_t type;
@@ -55,20 +57,20 @@ struct exception {
 	/* private */
 	uint32_t mask;
 	jmp_buf jmpbuf;
-	struct exception *outer;
+	exception_s *outer;
 };
 
 extern struct exception **get_innermost_exception();
 #define innermost_exception (*get_innermost_exception())
 
-#define TRY_CATCH(e, type_mask)                     \
-	(e).type = 0;                                   \
-	(e).mask = (type_mask);                         \
-	(e).outer = innermost_exception;                \
-	innermost_exception = (struct exception *)&(e); \
-	if (setjmp(innermost_exception->jmpbuf) == 0)   \
-		for (; innermost_exception == &(e); innermost_exception = (e).outer)
+#define TRY_CATCH(e, type_mask)                   \
+	(e).type = 0;                                 \
+	(e).mask = (type_mask);                       \
+	(e).outer = (*get_innermost_exception());              \
+	(*get_innermost_exception()) = (void *)&(e);           \
+	if (setjmp((*get_innermost_exception())->jmpbuf) == 0) \
+		for (; (*get_innermost_exception()) == &(e); (*get_innermost_exception()) = (e).outer)
 
 void raise_exception(uint32_t type, const char *msg);
 
-#endif
+#endif /* INCLUDE_FARPATCH_EXCEPTION_H */

@@ -266,7 +266,7 @@ void platform_set_baud(uint32_t baud)
 	nvs_set_u32(h_nvs_conf, "uartbaud", baud);
 }
 
-bool cmd_setbaud(target *t, int argc, const char **argv)
+bool cmd_setbaud(target_s *t, int argc, const char **argv)
 {
 	if (argc == 1) {
 		uint32_t baud;
