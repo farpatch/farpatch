@@ -2,11 +2,17 @@
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
 #include "esp_log.h"
+#include "sdkconfig.h"
 
 #define TAG "bmp-adc"
 
+#if CONFIG_IDF_TARGET_ESP32S3
 #define ADC_CHANNEL ADC_CHANNEL_8
 #define ADC_UNIT    ADC_UNIT_1
+#else
+#define ADC_CHANNEL ADC_CHANNEL_3
+#define ADC_UNIT    ADC_UNIT_1
+#endif
 
 static bool adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_cali_handle_t *out_handle)
 {
