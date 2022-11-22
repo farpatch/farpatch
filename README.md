@@ -52,6 +52,34 @@ ESP32 module with >= 4MB flash. It's possible to configure for other flash sizes
 
 You can adjust the GPIO defaults by running `idf.py menuconfig`.
 
+| Pin | Use                     |
+| --- | ----------------------- |
+| 25  | JTAG TDI                |
+| 26  | JTAG TDO                |
+| 27  | JTAG TMS / SWD IO       |
+| 12  | SWD IO direction select |
+| 14  | JTAG TCK / SWD CLK      |
+| 13  | NRST                    |
+| 21  | LED status              |
+| 2   | UART TX                 |
+| 15  | UART RX                 |
+
+## GPIO defaults for ESP32S3
+
+You can adjust the GPIO defaults by running `idf.py menuconfig`.
+
+| Pin | Use                     |
+| --- | ----------------------- |
+| 13  | JTAG TDI                |
+| 11  | JTAG TDO                |
+| 17  | JTAG TMS / SWD IO       |
+| 15  | SWD IO direction select |
+| 12  | JTAG TCK / SWD CLK      |
+| 33  | NRST                    |
+| 21  | UART TX                 |
+| 10  | UART RX                 |
+
+
 ## Serial terminal
 
 Connecting to serial terminal can be done using socat:
