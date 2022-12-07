@@ -7,4 +7,9 @@ void uart_dbg_install(void);
 int vprintf_remote(const char *fmt, va_list va);
 void uart_init(void);
 
+#define TARGET_UART_DEV    UART1
+#define TARGET_UART_IDX    1
+#define PERIPH_UART_MODULE PERIPH_UART1_MODULE
+#define PERIPH_UART_IRQ    ETS_UART1_INTR_SOURCE
+
 #endif /* FARPATCH_UART_H__ */

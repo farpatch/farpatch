@@ -21,22 +21,6 @@
 #include "tinyprintf.h"
 #include "uart.h"
 
-#if CONFIG_TARGET_UART_IDX == 0
-#define TARGET_UART_DEV    UART0
-#define PERIPH_UART_MODULE PERIPH_UART0_MODULE
-#define PERIPH_UART_IRQ    ETS_UART0_INTR_SOURCE
-#elif CONFIG_TARGET_UART_IDX == 1
-#define TARGET_UART_DEV    UART1
-#define PERIPH_UART_MODULE PERIPH_UART1_MODULE
-#define PERIPH_UART_IRQ    ETS_UART1_INTR_SOURCE
-#elif CONFIG_TARGET_UART_IDX == 2
-#define TARGET_UART_DEV    UART2
-#define PERIPH_UART_MODULE PERIPH_UART2_MODULE
-#define PERIPH_UART_IRQ    ETS_UART2_INTR_SOURCE
-#else
-#error "No target UART defined"
-#endif
-
 #define UHCI_INDEX 0
 
 static struct sockaddr_in udp_peer_addr;
@@ -195,7 +179,7 @@ static void net_uart_task(void *params)
 				socklen_t slen = sizeof(udp_peer_addr);
 				ret = recvfrom(udp_serv_sock, buf, sizeof(buf), 0, (struct sockaddr *)&udp_peer_addr, &slen);
 				if (ret > 0) {
-					uart_write_bytes(CONFIG_TARGET_UART_IDX, (const char *)buf, ret);
+					uart_write_bytes(TARGET_UART_IDX, (const char *)buf, ret);
 					uart_tx_count += ret;
 				} else {
 					ESP_LOGE(__func__, "udp recvfrom() failed");
@@ -205,7 +189,7 @@ static void net_uart_task(void *params)
 			if (tcp_client_sock && FD_ISSET(tcp_client_sock, &fds)) {
 				ret = recv(tcp_client_sock, buf, sizeof(buf), MSG_DONTWAIT);
 				if (ret > 0) {
-					uart_write_bytes(CONFIG_TARGET_UART_IDX, (const char *)buf, ret);
+					uart_write_bytes(TARGET_UART_IDX, (const char *)buf, ret);
 					uart_tx_count += ret;
 				} else {
 					ESP_LOGE(__func__, "tcp client recv() failed (%s)", strerror(errno));
@@ -232,10 +216,10 @@ static void uart_config(void)
 		.rx_flow_ctrl_thresh = 120,
 		.source_clk = UART_SCLK_DEFAULT,
 	};
-	ESP_ERROR_CHECK(uart_driver_install(CONFIG_TARGET_UART_IDX, 4096, 256, 16, &uart_event_queue, ESP_INTR_FLAG_IRAM));
-	ESP_ERROR_CHECK(uart_param_config(CONFIG_TARGET_UART_IDX, &uart_config));
+	ESP_ERROR_CHECK(uart_driver_install(TARGET_UART_IDX, 4096, 256, 16, &uart_event_queue, ESP_INTR_FLAG_IRAM));
+	ESP_ERROR_CHECK(uart_param_config(TARGET_UART_IDX, &uart_config));
 	ESP_ERROR_CHECK(uart_set_pin(
-		CONFIG_TARGET_UART_IDX, CONFIG_UART_TX_GPIO, CONFIG_UART_RX_GPIO, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+		TARGET_UART_IDX, CONFIG_UART_TX_GPIO, CONFIG_UART_RX_GPIO, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
 
 	const uart_intr_config_t uart_intr = {
 		.intr_enable_mask = UART_RXFIFO_FULL_INT_ENA_M | UART_RXFIFO_TOUT_INT_ENA_M | UART_FRM_ERR_INT_ENA_M |
@@ -245,8 +229,8 @@ static void uart_config(void)
 		.txfifo_empty_intr_thresh = 10,
 	};
 
-	ESP_ERROR_CHECK(uart_intr_config(CONFIG_TARGET_UART_IDX, &uart_intr));
-	uart_set_baudrate(CONFIG_TARGET_UART_IDX, baud);
+	ESP_ERROR_CHECK(uart_intr_config(TARGET_UART_IDX, &uart_intr));
+	uart_set_baudrate(TARGET_UART_IDX, baud);
 }
 
 static void IRAM_ATTR uart_rx_task(void *parameters)
@@ -272,7 +256,7 @@ static void IRAM_ATTR uart_rx_task(void *parameters)
 				uart_queue_full_cnt++;
 			}
 
-			count = uart_read_bytes(CONFIG_TARGET_UART_IDX, &buf, sizeof(buf), 0);
+			count = uart_read_bytes(TARGET_UART_IDX, &buf, sizeof(buf), 0);
 			if (count <= 0) {
 				// ESP_LOGE(__func__, "uart gave us 0 bytes");
 				continue;
@@ -304,21 +288,21 @@ static void IRAM_ATTR uart_rx_task(void *parameters)
 
 void uart_send_break(void)
 {
-	uart_wait_tx_done(CONFIG_TARGET_UART_IDX, 10);
+	uart_wait_tx_done(TARGET_UART_IDX, 10);
 
 	uint32_t baud;
-	uart_get_baudrate(CONFIG_TARGET_UART_IDX, &baud);    // save current baudrate
-	uart_set_baudrate(CONFIG_TARGET_UART_IDX, baud / 2); // set half the baudrate
+	uart_get_baudrate(TARGET_UART_IDX, &baud);    // save current baudrate
+	uart_set_baudrate(TARGET_UART_IDX, baud / 2); // set half the baudrate
 	const uint8_t b = 0x00;
-	uart_write_bytes(CONFIG_TARGET_UART_IDX, &b, 1);
-	uart_wait_tx_done(CONFIG_TARGET_UART_IDX, 10);
-	uart_set_baudrate(CONFIG_TARGET_UART_IDX, baud); // restore baudrate
+	uart_write_bytes(TARGET_UART_IDX, &b, 1);
+	uart_wait_tx_done(TARGET_UART_IDX, 10);
+	uart_set_baudrate(TARGET_UART_IDX, baud); // restore baudrate
 }
 
 void uart_init(void)
 {
 #if !defined(CONFIG_TARGET_UART_NONE)
-	ESP_LOGI(__func__, "configuring UART%d for target", CONFIG_TARGET_UART_IDX);
+	ESP_LOGI(__func__, "configuring UART%d for target", TARGET_UART_IDX);
 
 	// Start UART tasks
 	xTaskCreatePinnedToCore(uart_rx_task, "uart_rx_task", 4096, NULL, 1, NULL, 1);
