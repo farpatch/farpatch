@@ -36,7 +36,6 @@
 
 #include "gdb_if.h"
 #include "gdb_packet.h"
-#include "gdb_main.h"
 #include "gdb_hostio.h"
 
 #include "exception.h"
@@ -50,10 +49,6 @@
 #define GDB_TLS_INDEX     1
 #define EXCEPTION_NETWORK 0x40
 
-static int num_clients;
-
-static QueueHandle_t gdb_mutex;
-
 struct gdb_wifi_instance {
 	int sock;
 	uint8_t buf[256];
@@ -62,73 +57,6 @@ struct gdb_wifi_instance {
 	bool is_shutting_down;
 	TaskHandle_t pid;
 };
-
-void gdb_main(void);
-
-struct exception **get_innermost_exception(void)
-{
-	void **ptr = (void **)pvTaskGetThreadLocalStoragePointer(NULL, GDB_TLS_INDEX);
-	assert(ptr);
-	return (struct exception **)&ptr[1];
-}
-
-static void gdb_wifi_destroy(struct gdb_wifi_instance *instance)
-{
-	ESP_LOGI("gdb", "destroy %d", instance->sock);
-	num_clients--;
-
-	close(instance->sock);
-
-	TaskHandle_t pid = instance->pid;
-	free(instance);
-	vTaskDelete(pid);
-}
-
-static void gdb_wifi_task(void *arg)
-{
-	struct gdb_wifi_instance *instance = (struct gdb_wifi_instance *)arg;
-
-	void *tls[2] = {};
-	tls[0] = arg;
-	vTaskSetThreadLocalStoragePointer(NULL, GDB_TLS_INDEX, tls); // used for exception handling
-
-	ESP_LOGI("gdb", "Started task %d this:%p tlsp:%p mowner:%p", instance->sock, instance, tls,
-		xQueueGetMutexHolder(gdb_mutex));
-
-	int opt = 1;
-	setsockopt(instance->sock, IPPROTO_TCP, TCP_NODELAY, (void *)&opt, sizeof(opt));
-	opt = 1; /* SO_KEEPALIVE */
-	setsockopt(instance->sock, SOL_SOCKET, SO_KEEPALIVE, (void *)&opt, sizeof(opt));
-	opt = 3; /* s TCP_KEEPIDLE */
-	setsockopt(instance->sock, IPPROTO_TCP, TCP_KEEPIDLE, (void *)&opt, sizeof(opt));
-	opt = 1; /* s TCP_KEEPINTVL */
-	setsockopt(instance->sock, IPPROTO_TCP, TCP_KEEPINTVL, (void *)&opt, sizeof(opt));
-	opt = 3; /* TCP_KEEPCNT */
-	setsockopt(instance->sock, IPPROTO_TCP, TCP_KEEPCNT, (void *)&opt, sizeof(opt));
-	opt = 1;
-
-	num_clients++;
-
-	while (true) {
-		struct exception e;
-		TRY_CATCH (e, EXCEPTION_ALL) {
-			gdb_main();
-		}
-		if (e.type == EXCEPTION_NETWORK) {
-			ESP_LOGE("exception", "network exception -- exiting: %s", e.msg);
-			target_list_free();
-			break;
-		}
-		if (e.type) {
-			gdb_putpacketz("EFF");
-			target_list_free();
-			ESP_LOGI("exception", "TARGET LOST e.type:%" PRId32, e.type);
-			// morse("TARGET LOST.", 1);
-		}
-	}
-
-	gdb_wifi_destroy(instance);
-}
 
 static unsigned char gdb_wifi_if_getchar(struct gdb_wifi_instance *instance)
 {
@@ -203,52 +131,6 @@ static void gdb_wifi_if_putchar(struct gdb_wifi_instance *instance, unsigned cha
 			}
 		}
 		instance->bufsize = 0;
-	}
-}
-
-static void new_gdb_wifi_instance(int sock)
-{
-	char name[CONFIG_FREERTOS_MAX_TASK_NAME_LEN];
-	snprintf(name, sizeof(name) - 1, "gdbc fd:%" PRId16, sock);
-
-	struct gdb_wifi_instance *instance = malloc(sizeof(struct gdb_wifi_instance));
-	if (!instance) {
-		return;
-	}
-
-	memset(instance, 0, sizeof(*instance));
-	instance->sock = sock;
-
-	xTaskCreate(gdb_wifi_task, name, 12000, (void *)instance, tskIDLE_PRIORITY + 1, &instance->pid);
-}
-
-void gdb_net_task(void *arg)
-{
-	struct sockaddr_in addr;
-	int gdb_if_serv;
-	int opt;
-
-	gdb_mutex = xSemaphoreCreateMutex();
-
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons(CONFIG_TCP_PORT);
-	addr.sin_addr.s_addr = htonl(INADDR_ANY);
-
-	assert((gdb_if_serv = socket(PF_INET, SOCK_STREAM, 0)) != -1);
-	opt = 1;
-	assert(setsockopt(gdb_if_serv, SOL_SOCKET, SO_REUSEADDR, (void *)&opt, sizeof(opt)) != -1);
-	assert(setsockopt(gdb_if_serv, IPPROTO_TCP, TCP_NODELAY, (void *)&opt, sizeof(opt)) != -1);
-
-	assert(bind(gdb_if_serv, (struct sockaddr *)&addr, sizeof(addr)) != -1);
-	assert(listen(gdb_if_serv, 1) != -1);
-
-	ESP_LOGI("gdb", "Listening on TCP:%d", CONFIG_TCP_PORT);
-
-	while (1) {
-		int s = accept(gdb_if_serv, NULL, NULL);
-		if (s > 0) {
-			new_gdb_wifi_instance(s);
-		}
 	}
 }
 

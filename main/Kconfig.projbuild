@@ -114,12 +114,6 @@ menu "Blackmagic Configuration"
         help
         Uses the ESP32 debug UART to monitor blackmagic messages.
 
-    config BLACKMAGIC_HOSTNAME
-        string "Hostname"
-        default "blackmagic"
-        help
-        Hostname for the blackmagic probe.
-
     config TCP_PORT
         int "TCP port number"
         default 2022

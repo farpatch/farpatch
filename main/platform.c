@@ -254,7 +254,7 @@ void platform_init(void)
 	}
 #endif
 
-#if CONFIG_VTARGET_EN_GPIO >= 0
+#if CONFIG_VTARGET_EN_PRESENT
 	gpio_reset_pin(CONFIG_VTARGET_EN_GPIO);
 #if defined(CONFIG_FARPATCH_DVT4)
 	gpio_set_level(CONFIG_VTARGET_EN_GPIO, 0);
