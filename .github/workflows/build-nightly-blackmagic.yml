@@ -57,8 +57,9 @@ jobs:
     # Go into the `blackmagic` directory and check out the latest version
     - name: Sync Blackmagic main
       run: |
-        git -C farpatch/components/blackmagic/blackmagic fetch origin
-        git -C farpatch/components/blackmagic/blackmagic checkout origin/main
+        git -C farpatch/components/blackmagic/blackmagic remote add upstream https://github.com/blackmagic-debug/blackmagic.git
+        git -C farpatch/components/blackmagic/blackmagic fetch upstream
+        git -C farpatch/components/blackmagic/blackmagic rebase upstream/main
 
     - name: Build project for ESP32
       run: |
