@@ -15,6 +15,7 @@
 #include "websocket.h"
 #include "wifi.h"
 #include "driver/uart.h"
+#include "uart.h"
 
 #include "esp_attr.h"
 #include "esp_ota_ops.h"
@@ -62,7 +63,7 @@ static esp_err_t cgi_baud(httpd_req_t *req)
 	}
 
 	uint32_t baud = 0;
-	uart_get_baudrate(CONFIG_TARGET_UART_IDX, &baud);
+	uart_get_baudrate(TARGET_UART_IDX, &baud);
 
 	len = snprintf(buff, sizeof(buff), "{\"baudrate\": %lu }", baud);
 	httpd_resp_set_type(req, "text/json");

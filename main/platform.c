@@ -70,6 +70,9 @@
 nvs_handle h_nvs_conf;
 
 static uint32_t frequency;
+#if defined(CONFIG_VSEL_PRESENT)
+static const char *power_source_name = "unknown";
+#endif
 
 int swdptap_set_frequency(uint32_t frequency)
 {
@@ -107,6 +110,17 @@ void platform_init(void)
 	gpio_reset_pin(CONFIG_TCK_SWCLK_GPIO);
 #if CONFIG_TMS_SWDIO_DIR_GPIO >= 0
 	gpio_reset_pin(CONFIG_TMS_SWDIO_DIR_GPIO);
+#endif
+#if CONFIG_TCK_TDI_DIR_GPIO >= 0
+	gpio_reset_pin(CONFIG_TCK_TDI_DIR_GPIO);
+#endif
+
+	gpio_reset_pin(CONFIG_VREF_ADC_GPIO);
+#if defined(TMS_VOLTAGE_ADC_PRESENT)
+	gpio_reset_pin(CONFIG_TMS_ADC_GPIO);
+#endif
+#if defined(TDO_VOLTAGE_ADC_PRESENT)
+	gpio_reset_pin(CONFIG_TDO_ADC_GPIO);
 #endif
 
 	// Reset Button
@@ -174,9 +188,28 @@ void platform_init(void)
 			.pull_down_en = 0,
 			.intr_type = GPIO_INTR_DISABLE,
 		};
+#if defined(CONFIG_RESET_PUSHPULL)
 		gpio_set_level(CONFIG_NRST_GPIO, 1);
+#endif
+#if defined(CONFIG_RESET_OPENDRAIN)
+		gpio_set_level(CONFIG_NRST_GPIO, 0);
+#endif
 		gpio_config(&gpio_conf);
 	}
+
+#if CONFIG_RESET_SENSE_GPIO >= 0
+	// TMS/SWDIO level shifter direction
+	{
+		const gpio_config_t gpio_conf = {
+			.pin_bit_mask = BIT64(CONFIG_RESET_SENSE_GPIO),
+			.mode = GPIO_MODE_INPUT,
+			.pull_up_en = 0,
+			.pull_down_en = 0,
+			.intr_type = GPIO_INTR_DISABLE,
+		};
+		gpio_config(&gpio_conf);
+	}
+#endif
 
 	// TDI / SWDIO
 	{
@@ -205,7 +238,99 @@ void platform_init(void)
 		gpio_set_level(CONFIG_TMS_SWDIO_DIR_GPIO, 1);
 	}
 #endif
+
+#if CONFIG_TCK_TDI_DIR_GPIO >= 0
+	// TCK/TDI level shifter direction
+	{
+		const gpio_config_t gpio_conf = {
+			.pin_bit_mask = BIT64(CONFIG_TCK_TDI_DIR_GPIO),
+			.mode = GPIO_MODE_OUTPUT,
+			.pull_up_en = 0,
+			.pull_down_en = 0,
+			.intr_type = GPIO_INTR_DISABLE,
+		};
+		gpio_config(&gpio_conf);
+		gpio_set_level(CONFIG_TCK_TDI_DIR_GPIO, 0);
+	}
+#endif
+
+#if CONFIG_VTARGET_EN_GPIO >= 0
+	gpio_reset_pin(CONFIG_VTARGET_EN_GPIO);
+#if defined(CONFIG_FARPATCH_DVT4)
+	gpio_set_level(CONFIG_VTARGET_EN_GPIO, 0);
+#else
+	gpio_set_level(CONFIG_VTARGET_EN_GPIO, 1);
+#endif
+	gpio_set_direction(CONFIG_VTARGET_EN_GPIO, GPIO_MODE_OUTPUT);
+#endif
+
+// By default, drive the universal UART to 0 to emulate GND.
+#if defined(CONFIG_UUART_PRESENT)
+	gpio_reset_pin(CONFIG_UUART_RX_GPIO);
+	gpio_set_direction(CONFIG_UUART_RX_GPIO, GPIO_MODE_OUTPUT);
+	gpio_set_level(CONFIG_UUART_RX_GPIO, 0);
+
+	gpio_reset_pin(CONFIG_UUART_RX_GPIO);
+	gpio_set_direction(CONFIG_UUART_RX_GPIO, GPIO_MODE_OUTPUT);
+	gpio_set_level(CONFIG_UUART_RX_GPIO, 0);
+#endif /* CONFIG_UUART_PRESENT */
+
+#if defined(CONFIG_VSEL_PRESENT)
+	{
+		gpio_reset_pin(CONFIG_VSEL_TARGET_GPIO);
+		gpio_reset_pin(CONFIG_VSEL_USB_GPIO);
+		gpio_reset_pin(CONFIG_VSEL_EXTRA_GPIO);
+		gpio_config_t gpio_conf = {
+			.pin_bit_mask = BIT64(CONFIG_VSEL_TARGET_GPIO),
+			.mode = GPIO_MODE_INPUT,
+			.pull_up_en = 1,
+			.pull_down_en = 0,
+			.intr_type = GPIO_INTR_DISABLE,
+		};
+		gpio_config(&gpio_conf);
+
+		gpio_conf.pin_bit_mask = BIT64(CONFIG_VSEL_USB_GPIO);
+		gpio_config(&gpio_conf);
+
+		gpio_conf.pin_bit_mask = BIT64(CONFIG_VSEL_EXTRA_GPIO);
+		gpio_config(&gpio_conf);
+
+		uint32_t power_source = ((!gpio_get_level(CONFIG_VSEL_TARGET_GPIO)) << 0) |
+		                        ((!gpio_get_level(CONFIG_VSEL_USB_GPIO)) << 1) |
+		                        ((!gpio_get_level(CONFIG_VSEL_EXTRA_GPIO)) << 2);
+		if (power_source == 1) {
+			power_source_name = "VREF";
+		} else if (power_source == 2) {
+			power_source_name = "USB";
+		} else if (power_source == 4) {
+			power_source_name = "EXTRA";
+		} else {
+			power_source_name = "invalid";
+		}
+		ESP_LOGI(TAG, "power source: %s", power_source_name);
+	}
+#endif
 }
+
+#ifdef PLATFORM_HAS_POWER_SWITCH
+bool platform_target_get_power(void)
+{
+#if defined(CONFIG_FARPATCH_DVT4)
+	return gpio_get_level(CONFIG_VTARGET_EN_GPIO);
+#else
+	return !gpio_get_level(CONFIG_VTARGET_EN_GPIO);
+#endif
+}
+
+void platform_target_set_power(const bool power)
+{
+#if defined(CONFIG_FARPATCH_DVT4)
+	gpio_set_level(CONFIG_VTARGET_EN_GPIO, power);
+#else
+	gpio_set_level(CONFIG_VTARGET_EN_GPIO, !power);
+#endif
+}
+#endif /* PLATFORM_HAS_POWER_SWITCH */
 
 void platform_buffer_flush(void)
 {
@@ -214,32 +339,54 @@ void platform_buffer_flush(void)
 
 void platform_nrst_set_val(bool assert)
 {
-	if (assert) {
-		gpio_set_direction(CONFIG_NRST_GPIO, GPIO_OUTPUT);
-		gpio_set_level(CONFIG_NRST_GPIO, 0);
-	} else {
-		gpio_set_level(CONFIG_NRST_GPIO, 1);
-		gpio_set_direction(CONFIG_NRST_GPIO, GPIO_OUTPUT);
-	}
+#if defined(CONFIG_RESET_PUSHPULL)
+	gpio_set_level(CONFIG_NRST_GPIO, !assert);
+#endif
+#if defined(CONFIG_RESET_OPENDRAIN)
+	gpio_set_level(CONFIG_NRST_GPIO, assert);
+#endif
 }
 
 bool platform_nrst_get_val(void)
 {
+#if defined(CONFIG_RESET_PUSHPULL)
 	return !gpio_get_level(CONFIG_NRST_GPIO);
+#endif
+#if defined(CONFIG_RESET_OPENDRAIN)
+	return gpio_get_level(CONFIG_RESET_SENSE_GPIO);
+#endif
+}
+
+uint32_t platform_target_voltage_sense(void)
+{
+	extern int32_t adc_read_system_voltage(void);
+	int32_t adjusted_voltage = adc_read_system_voltage();
+	if (adjusted_voltage < 0) {
+		return 0;
+	}
+	// Convert mV to dV (e.g. 3300 -> 33 for 3.3V)
+	return adjusted_voltage / 100;
 }
 
 const char *platform_target_voltage(void)
 {
-	static char voltage[16];
+	static char voltage[48];
 	extern int32_t adc_read_system_voltage(void);
 
-	int adjusted_voltage = adc_read_system_voltage();
+	int32_t adjusted_voltage = adc_read_system_voltage();
 	if (adjusted_voltage == -1) {
 		snprintf(voltage, sizeof(voltage) - 1, "unknown");
 		return voltage;
 	}
 
-	snprintf(voltage, sizeof(voltage) - 1, "%dmV", adjusted_voltage);
+#if TMS_VOLTAGE_ADC_PRESENT && TDO_VOLTAGE_ADC_PRESENT
+	extern int32_t adc_read_tms_voltage(void);
+	extern int32_t adc_read_tdo_voltage(void);
+	snprintf(voltage, sizeof(voltage) - 1, "%ldmV (TMS: %ldmV, TDO: %ld mV)", adjusted_voltage, adc_read_tms_voltage(),
+		adc_read_tdo_voltage());
+#else
+	snprintf(voltage, sizeof(voltage) - 1, "%ldmV", adjusted_voltage);
+#endif
 	return voltage;
 }
 
@@ -262,7 +409,7 @@ int platform_hwversion(void)
 
 void platform_set_baud(uint32_t baud)
 {
-	uart_set_baudrate(CONFIG_TARGET_UART_IDX, 115200);
+	uart_set_baudrate(TARGET_UART_IDX, 115200);
 	nvs_set_u32(h_nvs_conf, "uartbaud", baud);
 }
 
@@ -270,7 +417,7 @@ bool cmd_setbaud(target_s *t, int argc, const char **argv)
 {
 	if (argc == 1) {
 		uint32_t baud;
-		uart_get_baudrate(CONFIG_TARGET_UART_IDX, &baud);
+		uart_get_baudrate(TARGET_UART_IDX, &baud);
 		gdb_outf("Current baud: %d\n", baud);
 	}
 	if (argc == 2) {
@@ -285,7 +432,8 @@ bool cmd_setbaud(target_s *t, int argc, const char **argv)
 
 /// Enable or disable the clock output pin. This is not configured on
 /// current Farpatch designs, but will be used in a future model.
-void platform_target_clk_output_enable(bool _enabled) {
+void platform_target_clk_output_enable(bool _enabled)
+{
 	(void)_enabled;
 }
 
@@ -299,11 +447,16 @@ extern void gdb_net_task();
 void app_main(void)
 {
 	ESP_LOGI(__func__, "starting farpatch");
-	// gpio_reset_pin(CONFIG_LED_GPIO);
-	// gpio_set_direction(CONFIG_LED_GPIO, GPIO_MODE_OUTPUT);
-	// gpio_set_level(CONFIG_LED_GPIO, 1);
-	// extern void esp32_spi_mux_out(int pin, int out_signal);
-	// esp32_spi_mux_out(CONFIG_LED_GPIO, SIG_GPIO_OUT_IDX | (1 << 10));
+#if CONFIG_LED_GPIO >= 0
+	gpio_reset_pin(CONFIG_LED_GPIO);
+	gpio_set_direction(CONFIG_LED_GPIO, GPIO_MODE_OUTPUT);
+	gpio_set_level(CONFIG_LED_GPIO, 1);
+#endif
+#if CONFIG_LED2_GPIO >= 0
+	gpio_reset_pin(CONFIG_LED2_GPIO);
+	gpio_set_direction(CONFIG_LED2_GPIO, GPIO_MODE_OUTPUT);
+	gpio_set_level(CONFIG_LED2_GPIO, 1);
+#endif
 
 #ifdef CONFIG_DEBUG_UART
 	uart_dbg_install();

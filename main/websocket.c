@@ -2,6 +2,7 @@
 #include "lwip/sockets.h"
 #include "websocket.h"
 #include "driver/uart.h"
+#include "uart.h"
 
 #include <esp_log.h>
 
@@ -29,7 +30,7 @@ static void on_rtt_receive(httpd_handle_t server, httpd_req_t *req, uint8_t *dat
 
 static void on_uart_receive(httpd_handle_t server, httpd_req_t *req, uint8_t *data, int len)
 {
-	uart_write_bytes(CONFIG_TARGET_UART_IDX, (const uint8_t *)data, len);
+	uart_write_bytes(TARGET_UART_IDX, (const uint8_t *)data, len);
 }
 
 static void on_debug_receive(httpd_handle_t server, httpd_req_t *req, uint8_t *data, int len)
