@@ -80,6 +80,22 @@ You can adjust the GPIO defaults by running `idf.py menuconfig`.
 | 10  | UART RX                 |
 
 
+## GPIO defaults for ESP32C3-MINI1
+
+You can adjust the GPIO defaults by running `idf.py menuconfig`.
+
+| Pin | Use                |
+| --- | ------------------ |
+| 3   | VREF               |
+| 4   | JTAG TDI           |
+| 5   | JTAG TDO           |
+| 6   | JTAG TCK / SWD CLK |
+| 7   | JTAG TMS / SWD IO  |
+| 8   | WS2812B LED        |
+| 10  | NRST               |
+| 21  | UART TX            |
+| 20  | UART RX            |
+
 ## Serial terminal
 
 Connecting to serial terminal can be done using socat:
