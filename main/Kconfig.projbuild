@@ -25,6 +25,9 @@ menu "Blackmagic Configuration"
         config FARPATCH_DVT4
             depends on IDF_TARGET_ESP32S3
             bool "Farpatch DVT4"
+        config ESP32C3_MINI1
+            depends on IDF_TARGET_ESP32C3
+            bool "ESP32C3-MINI1"
         config ESP32_WROVER_B
             depends on IDF_TARGET_ESP32
             bool "ESP32-WROVER-B"

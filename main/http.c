@@ -340,7 +340,7 @@ static bool frogfs_is_gzip(frogfs_file_t *file)
 
 static esp_err_t cgi_frog_fs_hook(httpd_req_t *req)
 {
-	char chunk[512];
+	char chunk[525];
 	int chunk_bytes;
 
 	ESP_LOGI(__func__, "uri: %s", req->uri);
