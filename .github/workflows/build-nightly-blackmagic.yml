@@ -57,6 +57,8 @@ jobs:
     # Go into the `blackmagic` directory and check out the latest version
     - name: Sync Blackmagic main
       run: |
+        git config --global user.email "ci@farpatch.com"
+        git config --global user.name "Farpatch CI"
         git -C farpatch/components/blackmagic/blackmagic remote add upstream https://github.com/blackmagic-debug/blackmagic.git
         git -C farpatch/components/blackmagic/blackmagic fetch upstream
         git -C farpatch/components/blackmagic/blackmagic pull --unshallow
