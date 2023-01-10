@@ -48,9 +48,19 @@ Supports many ARM Cortex-M and Cortex-A targets. See the list at the [Blackmagic
 
 ESP32 module with >= 4MB flash. It's possible to configure for other flash sizes. see `idf.py menuconfig`
 
-## GPIO defaults for ESP32
+## Selecting a Target
 
-You can adjust the GPIO defaults by running `idf.py menuconfig`.
+First, set your chip by running `idf.py set-target [chip]`. For example, `idf.py set-target esp32s3`.
+
+Next, `idf.py menuconfig` and select `Blackmagic Configuration -> Hardware Model`.
+If your hardware model is not listed, you can select `Custom PCB` and assign your
+own pins, but please consider submitting a patch for your particular pinout configuration.
+
+Hardware models only appear for the currently-selected chip target.
+
+### GPIO defaults for ESP32
+
+If you select a custom PCB, the following pinouts are set by default for ESP32:
 
 | Pin | Use                     |
 | --- | ----------------------- |
@@ -64,9 +74,9 @@ You can adjust the GPIO defaults by running `idf.py menuconfig`.
 | 2   | UART TX                 |
 | 15  | UART RX                 |
 
-## GPIO defaults for ESP32S3
+### GPIO defaults for ESP32-S3
 
-You can adjust the GPIO defaults by running `idf.py menuconfig`.
+The following are pinout defaults for ESP32-S3:
 
 | Pin | Use                     |
 | --- | ----------------------- |
@@ -80,7 +90,7 @@ You can adjust the GPIO defaults by running `idf.py menuconfig`.
 | 10  | UART RX                 |
 
 
-## GPIO defaults for ESP32C3-MINI1
+### GPIO defaults for ESP32C3-MINI1
 
 You can adjust the GPIO defaults by running `idf.py menuconfig`.
 
@@ -115,8 +125,39 @@ Alternately, if you have `esp-idf` installed, you can use `idf.py` to build it u
 ```bash
 git clone --recursive https://github.com/farpatch/farpatch.git
 cd farpatch
+idf.py set-target esp32s3
 idf.py menuconfig
-idf.py make
+idf.py build
+```
+
+## Flashing using esptool.py
+
+To flash using `esptool.py`, you will first need to put the board into bootloader mode:
+
+1. **Apply power**. For boards before DVT4, this means plugging Farpatch into a target. For newer boards, you can set the switch to `VUSB`.
+2. Plug the device into your PC via USB
+3. Hold down the `PRG` button
+4. Press and release the `RST` button
+5. Release the `PRG` button
+
+The device should enumerate as a serial port on your computer.
+
+The `esp-idf` package comes with a programmer called `esptool.py`. You can flash the firmware
+using the command line:
+
+```bash
+idf.py flash
+```
+
+Alternately, you can install `esptool.py` and flash the program that way:
+
+```
+python -mvenv .
+. bin/activate # Mac / Linux
+.\Scripts\activate.ps1 # Powershell
+.\Scripts\activate.bat % cmd.exe
+pip install esptool
+esptool.py -p (PORT) -b 460800 --before default_reset --after hard_reset --chip esp32s3  write_flash --flash_mode dio --flash_size detect --flash_freq 80m 0x0 build\bootloader\bootloader.bin 0x8000 build\partition_table\partition-table.bin 0xd000 build\ota_data_initial.bin 0x10000 build\blackmagic.bin
 ```
 
 ## OTA Flashing
@@ -126,3 +167,42 @@ If the firmware is already on the device, it is possible to flash using tftp. Ma
 ```bash
 tftp -v -m octet $FARPATCH_IP -c put build/blackmagic.bin firmware.bin
 ```
+
+Please note that `firmware.bin` is required, and tells the target that you're uploading a file
+called 'firmware.bin'.
+
+## Web Flashing
+
+There is an experimental web interface available to flashing new updates.
+
+1. Go to `http://10.10.0.1/flash/`
+2. Select `blackmagic.bin` as the firmware file
+3. Click `Update!`
+
+# Connecting to the Device
+
+By default, Farpatch starts an access point that consists of its name, plus two random strings.
+You can connect to this to access Farpatch. This access point will always be started when
+the current wifi configuration does not function.
+
+**The default password is `12345678`**. You can change this by running `make menuconfig` and
+selecting `Component Config -> Wifi Manager Configuration -> Access Point Password`.
+
+## Configuring wifi
+
+You can configure Farpatch to connect to your existing wifi network. To do that, connect
+to its access point and navitage to:
+
+<http://10.10.0.1/wifi.html>
+
+This will scan your network, then ask you for a password to connect to the specified access point.
+When you connect, your PC will be redirected to the new address, though you may need to reconnect
+to your existing wifi network.
+
+Note that `/wifi.html` is always available, even when connected to an existing network. Currently,
+only one network can be stored at a time.
+
+## Deconfiguring wifi
+
+To deconfigure wifi, hold the `PRG` button for 5 seconds. This will clear the wifi configuration
+data and start up an access point.
