@@ -18,8 +18,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __PLATFORM_H
-#define __PLATFORM_H
+#ifndef FARPATCH_PLATFORM_H
+#define FARPATCH_PLATFORM_H
 
 #include "esp_log.h"
 #include "esp_attr.h"
@@ -28,6 +28,9 @@
 #include "hal/gpio_hal.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+
+#define PLATFORM_HAS_DEBUG
+extern bool debug_bmp;
 
 void platform_buffer_flush(void);
 void platform_set_baud(uint32_t baud);
@@ -127,10 +130,11 @@ void platform_set_baud(uint32_t baud);
 
 #define PLATFORM_HAS_DEBUG
 #define PLATFORM_IDENT "esp32"
-#endif
 
 #define PLATFORM_HAS_TRACESWO
 #define NUM_TRACE_PACKETS (128) /* This is an 8K buffer */
 #define TRACESWO_PROTOCOL 2     /* 1 = Manchester, 2 = NRZ / async */
 
 extern uint32_t swd_delay_cnt;
+
+#endif /* FARPATCH_PLATFORM_H */
