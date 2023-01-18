@@ -107,7 +107,7 @@ static void gdb_wifi_task(void *arg)
 			if ((pbuf[0] != 0x04) || cur_target) {
 				SET_IDLE_STATE(0);
 			}
-			gdb_main(pbuf, size);
+			gdb_main(pbuf, sizeof(instance->rx_buf), size);
 			MAYBE_SLEEP(last_sleep, current_sleep);
 		}
 		if (e.type == EXCEPTION_NETWORK) {
