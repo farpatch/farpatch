@@ -67,6 +67,13 @@ void debug_putc(char c, int flush)
 	}
 }
 
+void debug_serial_send_stdout(const uint8_t *const data, const size_t len) {
+	size_t i;
+	for (i = 0; i < len; i++) {
+		debug_putc(data[i], 0);
+	}
+}
+
 static vprintf_like_t vprintf_orig = NULL;
 static void putc_remote(void *ignored, char c)
 {
