@@ -30,6 +30,7 @@
 #if SWDPTAP_MODE_GPIO == 1
 
 uint32_t swd_delay_cnt = 0;
+swd_proc_s swd_proc;
 
 typedef enum swdio_status_e {
 	SWDIO_STATUS_FLOAT = 0,
@@ -175,14 +176,12 @@ static void swdptap_seq_out_parity(const uint32_t tms_states, const size_t clock
 		continue;
 }
 
-int swdptap_init(adiv5_debug_port_s *dp)
+void swdptap_init(void)
 {
-	dp->seq_in  = swdptap_seq_in;
-	dp->seq_in_parity  = swdptap_seq_in_parity;
-	dp->seq_out = swdptap_seq_out;
-	dp->seq_out_parity  = swdptap_seq_out_parity;
-
-	return 0;
+	swd_proc.seq_in = swdptap_seq_in;
+	swd_proc.seq_in_parity = swdptap_seq_in_parity;
+	swd_proc.seq_out = swdptap_seq_out;
+	swd_proc.seq_out_parity = swdptap_seq_out_parity;
 }
 
 #endif

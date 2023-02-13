@@ -34,7 +34,7 @@ static IRAM_ATTR void jtagtap_tdi_tdo_seq(uint8_t *DO, const bool final_tms, con
 static IRAM_ATTR void jtagtap_tdi_seq(const bool final_tms, const uint8_t *DI, size_t ticks);
 static IRAM_ATTR bool jtagtap_next(const bool dTMS, const bool dTDI);
 
-int jtagtap_init(void)
+void jtagtap_init(void)
 {
 	gpio_reset_pin(CONFIG_TDI_GPIO);
 	gpio_reset_pin(CONFIG_TDO_GPIO);
@@ -63,8 +63,6 @@ int jtagtap_init(void)
 		jtagtap_next(1, 0);      /* Reset SW-DP */
 	jtagtap_tms_seq(0xE73C, 16); /* SWD to JTAG sequence */
 	jtagtap_soft_reset();
-
-	return 0;
 }
 
 static void jtagtap_reset(void)
