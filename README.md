@@ -46,7 +46,9 @@ Supports many ARM Cortex-M and Cortex-A targets. See the list at the [Blackmagic
 
 ## Requirements
 
-ESP32 module with >= 4MB flash. It's possible to configure for other flash sizes. see `idf.py menuconfig`
+ESP32 module with >= 4MB flash. It's possible to configure for other flash sizes -- see `idf.py menuconfig`
+
+In order to support voltage measurement, the ADC must be connected using a voltage divider with 82k on top and 20k on the bottom. This will allow Farpatch to measure voltages with a range from 0.51V to 6.12V.
 
 ## Selecting a Target
 
@@ -88,7 +90,6 @@ The following are pinout defaults for ESP32-S3:
 | 33  | NRST                    |
 | 21  | UART TX                 |
 | 10  | UART RX                 |
-
 
 ### GPIO defaults for ESP32C3-MINI1
 
@@ -188,7 +189,7 @@ the current wifi configuration does not function.
 **The default password is `12345678`**. You can change this by running `make menuconfig` and
 selecting `Component Config -> Wifi Manager Configuration -> Access Point Password`.
 
-## Configuring wifi
+## Configuring Wifi
 
 You can configure Farpatch to connect to your existing wifi network. To do that, connect
 to its access point and navitage to:
