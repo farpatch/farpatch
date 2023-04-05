@@ -94,6 +94,7 @@
 
 /* Use bit-banged GPIO to drive SWD */
 #define SWDPTAP_MODE_GPIO 1
+#define SWDPTAP_MODE_SPI  0
 #define SWDPTAP_MODE_ULP  0
 
 #if defined(CONFIG_FARPATCH_DVT2)

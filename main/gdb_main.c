@@ -20,8 +20,15 @@
 #include "morse.h"
 #include "rtt.h"
 
-#define GDB_PACKET_BUFFER_SIZE 1024U
 static int num_clients;
+
+char *gdb_packet_buffer(void)
+{
+	void **ptr = (void **)pvTaskGetThreadLocalStoragePointer(NULL, GDB_TLS_INDEX);
+	assert(ptr);
+	struct bmp_wifi_instance *instance_ptr = *ptr;
+	return instance_ptr->rx_buf;
+}
 
 struct exception **get_innermost_exception(void)
 {
