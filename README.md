@@ -3,7 +3,7 @@
 
 Farpatch is a hardware debugger that is powered off of the `VTref` pin of a debug port and presents a wifi interface. This enables debugging JTAG and SWD remotely in systems that otherwise might be difficult to reach.
 
-It is powered by the [blackmagic](https://github.com/blacksphere/blackmagic) project.
+It is powered by the [blackmagic](https://github.com/blackmagic-debug/blackmagic) project.
 
 This was originally based on [blackmagic-espidf for ESP8266](https://github.com/walmis/blackmagic-espidf) and has undergone extensive rework.
 
@@ -18,7 +18,7 @@ This was originally based on [blackmagic-espidf for ESP8266](https://github.com/
 - Wifi configuration via web interface
 - OTA updates over tftp
 - No drivers needed on the host PC
-- All the debug features and supported targets of the [blackmagic](https://github.com/blacksphere/blackmagic) firmware:
+- All the debug features and supported targets of the [blackmagic](https://github.com/blackmagic-debug/blackmagic) firmware:
   - Targets ARM Cortex-M and Cortex-A based microcontrollers.
   - Connects to the target processor using the JTAG or Serial Wire Debug (SWD) interface.
   - Provides full debugging functionality, including: watchpoints, flash memory breakpoints, memory and register examination, flash memory programming, etc.
@@ -42,7 +42,7 @@ This was originally based on [blackmagic-espidf for ESP8266](https://github.com/
 
 ## Supported Targets
 
-Supports many ARM Cortex-M and Cortex-A targets. See the list at the [Blackmagic Repository](https://github.com/blackmagic-debug/blackmagic/wiki#supported-targets)
+Supports many ARM Cortex-M and Cortex-A targets. See the list at the [Blackmagic Website](https://black-magic.org/knowledge/faq.html#what-targets-are-currently-supported)
 
 ## Requirements
 
