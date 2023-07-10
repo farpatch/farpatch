@@ -86,10 +86,10 @@
 	} while (0)
 
 #else
-#define DEBUG_WARN(x, ...)
-#define DEBUG_INFO(x, ...)
-#define DEBUG_GDB(x, ...)
-#define DEBUG_TARGET(x, ...)
+#define DEBUG_WARN(x, ...) PRINT_NOOP()
+#define DEBUG_INFO(x, ...) PRINT_NOOP()
+#define DEBUG_GDB(x, ...) PRINT_NOOP()
+#define DEBUG_TARGET(x, ...) PRINT_NOOP()
 #endif
 
 /* Use bit-banged GPIO to drive SWD */
