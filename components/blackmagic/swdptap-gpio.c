@@ -23,9 +23,10 @@
 #define DEBUG_SWD_TRANSACTIONS
 /* This file implements the SW-DP interface. */
 
-#include "general.h"
-#include "timing.h"
 #include "adiv5.h"
+#include "general.h"
+#include "platform.h"
+#include "timing.h"
 
 #if SWDPTAP_MODE_GPIO == 1
 

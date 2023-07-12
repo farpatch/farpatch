@@ -22,9 +22,12 @@
 
 #include <stdio.h>
 
+#include "gdb_packet.h"
 #include "general.h"
 #include "jtagtap.h"
-#include "gdb_packet.h"
+#include "platform.h"
+
+#include "esp_attr.h"
 
 jtag_proc_s jtag_proc;
 
