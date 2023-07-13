@@ -18,6 +18,7 @@
 #include "gdb_packet.h"
 #include "general.h"
 #include "morse.h"
+#include "platform.h"
 #include "rtt.h"
 
 static int num_clients;
