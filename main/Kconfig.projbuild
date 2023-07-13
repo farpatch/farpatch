@@ -97,6 +97,10 @@ menu "Blackmagic Configuration"
         help
         Second LED GPIO Number, or -1 if not present
 
+    config TRACE_SWO_UART_IDX
+        int
+        default 2
+
     config UART_TX_GPIO
         int "UART TX pin"
         depends on CUSTOM_HARDWARE
