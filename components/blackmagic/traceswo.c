@@ -28,6 +28,7 @@
  */
 
 #include "general.h"
+#include "platform.h"
 #include "traceswo.h"
 // #include <esp32/clk.h>
 #include <esp_log.h>
@@ -261,7 +262,7 @@ void traceswo_deinit(void)
 	// 	}
 	// }
 }
-void traceswo_init(uint32_t swo_chan_bitmask)
+void traceswo_init(uint32_t baudrate, uint32_t swo_chan_bitmask)
 {
 	// if (!rx_pid) {
 	// 	ESP_LOGI(TAG, "initializing traceswo");
