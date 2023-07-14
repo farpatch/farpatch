@@ -120,7 +120,7 @@ regs Kusti, 23.10.2004
    tfp_{vsn,sn,vs,s}printf to be also available as
    printf/{vsn,sn,vs,s}printf */
 #ifndef TINYPRINTF_OVERRIDE_LIBC
-#define TINYPRINTF_OVERRIDE_LIBC 1
+#define TINYPRINTF_OVERRIDE_LIBC 0
 #endif
 
 /* Optional external types dependencies */
