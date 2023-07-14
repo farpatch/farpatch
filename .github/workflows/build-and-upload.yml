@@ -75,6 +75,18 @@ jobs:
         cp build/partition_table/partition-table.bin  ../artifacts/esp32s3/partition-table.bin
         cp build/ota_data_initial.bin                 ../artifacts/esp32s3/ota_data_initial.bin
 
+    - name: Build project for ESP32C3
+      run: |
+        . esp-idf/export.sh
+        cd farpatch
+        idf.py set-target esp32c3
+        idf.py build
+        cp build/blackmagic.bin                       ../artifacts/esp32c3/blackmagic.bin
+        cp build/blackmagic.elf                       ../artifacts/esp32c3/blackmagic.elf
+        cp build/bootloader/bootloader.bin            ../artifacts/esp32c3/bootloader.bin
+        cp build/partition_table/partition-table.bin  ../artifacts/esp32c3/partition-table.bin
+        cp build/ota_data_initial.bin                 ../artifacts/esp32c3/ota_data_initial.bin
+
     - name: Archive firmware build artifacts for ESP32 as a zip
       uses: actions/upload-artifact@v2.2.4
       with:
@@ -88,4 +100,10 @@ jobs:
         name: blackmagic-firmware-esp32s3.zip
         path: artifacts/esp32s3/*
         if-no-files-found: error
-        
+
+    - name: Archive firmware build artifacts for ESP32C3 as a zip
+      uses: actions/upload-artifact@v2.2.4
+      with:
+        name: blackmagic-firmware-esp32c3.zip
+        path: artifacts/esp32c3/*
+        if-no-files-found: error
