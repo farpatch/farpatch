@@ -43,13 +43,14 @@ jobs:
     - name: Install esp-idf
       run: |
         cd esp-idf
-        ./install.sh esp32s3,esp32
+        ./install.sh esp32s3,esp32,esp32c3
 
     - name: Create artifacts directory
       run: |
         mkdir artifacts
         mkdir artifacts/esp32
         mkdir artifacts/esp32s3
+        mkdir artifacts/esp32c3
 
     - name: Build project for ESP32
       run: |

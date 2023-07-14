@@ -52,7 +52,7 @@ jobs:
     - name: Install esp-idf
       run: |
         cd esp-idf
-        ./install.sh esp32s3,esp32
+        ./install.sh esp32s3,esp32,esp32c3
 
     # Go into the `blackmagic` directory and check out the latest version
     - name: Sync Blackmagic main
