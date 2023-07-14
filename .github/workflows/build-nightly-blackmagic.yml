@@ -77,3 +77,10 @@ jobs:
         cd farpatch
         idf.py set-target esp32s3
         idf.py build
+
+    - name: Build project for ESP32C3
+      run: |
+        . esp-idf/export.sh
+        cd farpatch
+        idf.py set-target esp32c3
+        idf.py build

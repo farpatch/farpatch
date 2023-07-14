@@ -43,7 +43,7 @@ jobs:
     - name: Install esp-idf
       run: |
         cd esp-idf
-        ./install.sh esp32s3,esp32
+        ./install.sh esp32s3,esp32,esp32c3
 
     - name: Build project for ESP32
       run: |
@@ -57,4 +57,11 @@ jobs:
         . esp-idf/export.sh
         cd farpatch
         idf.py set-target esp32s3
+        idf.py build
+
+    - name: Build project for ESP32C3
+      run: |
+        . esp-idf/export.sh
+        cd farpatch
+        idf.py set-target esp32c3
         idf.py build
