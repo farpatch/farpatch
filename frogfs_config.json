@@ -1,7 +1,7 @@
 {
     "filters": {
         "romfs.paths": "discard",
-        "romfs.yaml": "discard",
+        "romfs.json": "discard",
         "*.css": "uglifycss",
         "*.html": [
             "html-minifier",
