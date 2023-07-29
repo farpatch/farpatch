@@ -322,13 +322,14 @@ bool platform_target_get_power(void)
 #endif
 }
 
-void platform_target_set_power(const bool power)
+bool platform_target_set_power(bool power)
 {
 #if defined(CONFIG_FARPATCH_DVT4)
 	gpio_set_level(CONFIG_VTARGET_EN_GPIO, power);
 #else
 	gpio_set_level(CONFIG_VTARGET_EN_GPIO, !power);
 #endif
+	return true;
 }
 #endif /* PLATFORM_HAS_POWER_SWITCH */
 
