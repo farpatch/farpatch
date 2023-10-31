@@ -31,7 +31,7 @@
 
 jtag_proc_s jtag_proc;
 
-static IRAM_ATTR void jtagtap_reset(void);
+static void jtagtap_reset(void);
 static IRAM_ATTR void jtagtap_tms_seq(uint32_t MS, size_t ticks);
 static IRAM_ATTR void jtagtap_tdi_tdo_seq(uint8_t *DO, const bool final_tms, const uint8_t *DI, size_t ticks);
 static IRAM_ATTR void jtagtap_tdi_seq(const bool final_tms, const uint8_t *DI, size_t ticks);

@@ -11,7 +11,7 @@
 #define TAG "wifi-reset"
 static gptimer_handle_t gptimer = NULL;
 
-static bool IRAM_ATTR perform_wifi_reset(
+static bool perform_wifi_reset(
 	struct gptimer_t *timer, const gptimer_alarm_event_data_t *event, void *user_ctx)
 {
 	(void)user_ctx;
