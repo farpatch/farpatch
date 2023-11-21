@@ -74,6 +74,8 @@ static uint32_t frequency;
 static const char *power_source_name = "unknown";
 #endif
 
+void initialise_mdns(const char *hostname);
+
 int swdptap_set_frequency(uint32_t frequency)
 {
 	return frequency;
@@ -486,6 +488,9 @@ void app_main(void)
 	// ensure networking is running.
 	vTaskDelay(pdMS_TO_TICKS(200));
 	webserver_start();
+
+	ESP_LOGI(TAG, "starting mdns broadcaster");
+	initialise_mdns(NULL);
 
 	ESP_LOGI(TAG, "initializing platform");
 	platform_init();

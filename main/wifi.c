@@ -18,14 +18,20 @@ const static char http_cache_control_no_cache[] = "no-store, no-cache, must-reva
 const static char http_pragma_hdr[] = "Pragma";
 const static char http_pragma_no_cache[] = "no-cache";
 
-void bm_update_wifi_ssid(void)
-{
+void generate_name(const char **name1, const char **name2) {
 	uint8_t chipid[8];
 	esp_read_mac(chipid, ESP_MAC_WIFI_SOFTAP);
 	uint32_t chip_hi_idx = chipid[5] | ((chipid[4] & 3) << 8);
 	uint32_t chip_lo_idx = (chipid[4] >> 2) | ((chipid[3] & 15) << 6);
-	const char *chip_hi = word_list[chip_hi_idx];
-	const char *chip_lo = word_list[chip_lo_idx];
+	*name1 = word_list[chip_hi_idx];
+	*name2 = word_list[chip_lo_idx];
+}
+
+void bm_update_wifi_ssid(void)
+{
+	const char *chip_hi;
+	const char *chip_lo;
+	generate_name(&chip_hi, &chip_lo);
 	snprintf((char *)wifi_settings.ap_ssid, sizeof(wifi_settings.ap_ssid) - 1, "Farpatch (%s %s)", chip_hi, chip_lo);
 }
 
