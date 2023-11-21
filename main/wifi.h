@@ -3,6 +3,7 @@
 
 #include <esp_http_server.h>
 
+void generate_name(const char **name1, const char **name2);
 void bm_update_wifi_ssid(void);
 void bm_update_wifi_ps(void);
 
