@@ -412,21 +412,20 @@ int platform_hwversion(void)
 
 void platform_set_baud(uint32_t baud)
 {
-	uart_set_baudrate(TARGET_UART_IDX, 115200);
+	uart_set_baudrate(TARGET_UART_IDX, baud);
 	nvs_set_u32(h_nvs_conf, "uartbaud", baud);
 }
 
 bool cmd_setbaud(target_s *t, int argc, const char **argv)
 {
+	uint32_t baud;
 	if (argc == 1) {
-		uint32_t baud;
 		uart_get_baudrate(TARGET_UART_IDX, &baud);
 		gdb_outf("Current baud: %"PRIu32"\n", baud);
 	}
 	if (argc == 2) {
-		int baud = atoi(argv[1]);
-		gdb_outf("Setting baud: %d\n", baud);
-
+		baud = strtoul(argv[1], NULL, 0);
+		gdb_outf("Setting baud: %"PRIu32"\n", baud);
 		platform_set_baud(baud);
 	}
 
