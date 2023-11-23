@@ -421,7 +421,7 @@ bool cmd_setbaud(target_s *t, int argc, const char **argv)
 	if (argc == 1) {
 		uint32_t baud;
 		uart_get_baudrate(TARGET_UART_IDX, &baud);
-		gdb_outf("Current baud: %d\n", baud);
+		gdb_outf("Current baud: %"PRIu32"\n", baud);
 	}
 	if (argc == 2) {
 		int baud = atoi(argv[1]);
