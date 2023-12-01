@@ -12,7 +12,7 @@ void initialise_mdns(const char *hostname)
 		const char *name1;
 		const char *name2;
         generate_name(&name1, &name2);
-        snprintf(generated_hostname, sizeof(generated_hostname) - 1, "farpatch-%s-%s.local", name1, name2);
+        snprintf(generated_hostname, sizeof(generated_hostname) - 1, "farpatch-%s-%s", name1, name2);
 		ESP_ERROR_CHECK(mdns_hostname_set(generated_hostname));
 		ESP_LOGI(TAG, "mdns hostname set to: [%s]", generated_hostname);
 	} else {
