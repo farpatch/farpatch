@@ -1,4 +1,6 @@
 #undef _GNU_SOURCE
+#include <platform.h>
+
 #include_next <general.h>
 
 #ifndef __BLACKMAGIC_GENERAL_H__
@@ -15,6 +17,8 @@
 #endif
 
 #ifdef ENABLE_DEBUG
+#include "esp_log.h"
+
 // Redefine a bunch of ESP debug macros here without the trailing linefeed
 #define LOG_FORMAT_BMP(letter, format)             LOG_COLOR_##letter #letter " (%" PRIu32 ") %s: " format LOG_RESET_COLOR
 #define LOG_SYSTEM_TIME_FORMAT_BMP(letter, format) LOG_COLOR_##letter #letter " (%s) %s: " format LOG_RESET_COLOR
