@@ -12,6 +12,7 @@
 #include "platform.h"
 #include "hashmap.h"
 #include "ota-http.h"
+#include "farpatch_adc.h"
 #include "websocket.h"
 #include "wifi.h"
 #include "driver/uart.h"
@@ -139,6 +140,27 @@ static esp_err_t cgi_status(httpd_req_t *req)
 		esp_get_idf_version());
 	httpd_resp_sendstr_chunk(req, buffer);
 
+	// System information
+	snprintf(buffer, sizeof(buffer) - 1,
+		",\"system\": {"
+		"\"heap\": %" PRIu32 ","
+		"\"uptime\": %" PRIu32 "}",
+		esp_get_free_heap_size(), xTaskGetTickCount() * portTICK_PERIOD_MS);
+	httpd_resp_sendstr_chunk(req, buffer);
+
+	// Voltages
+	snprintf(buffer, sizeof(buffer) - 1,
+		",\"voltages\": {"
+		"\"system\": %" PRIu32 ","
+		"\"target\": %" PRIu32 ","
+		"\"usb\": %" PRIu32 ","
+		"\"debug\": %" PRIu32 ","
+		"\"ext\": %" PRIu32 ","
+		"}",
+		voltages_mv[ADC_SYSTEM_VOLTAGE], voltages_mv[ADC_TARGET_VOLTAGE], voltages_mv[ADC_USB_VOLTAGE],
+		voltages_mv[ADC_DEBUG_VOLTAGE], voltages_mv[ADC_EXT_VOLTAGE]);
+
+	// UART status
 	uint32_t target_baud = 0;
 	uint32_t uuart_baud = 0;
 	uint32_t swo_baud = 0;
@@ -160,8 +182,6 @@ static esp_err_t cgi_status(httpd_req_t *req)
 
 	return ESP_OK;
 }
-
-int32_t adc_read_system_voltage(void);
 
 static esp_err_t cgi_system_status_header(httpd_req_t *req)
 {
@@ -187,7 +207,7 @@ static esp_err_t cgi_system_status_header(httpd_req_t *req)
 		target_baud, swo_baud);
 	httpd_resp_sendstr_chunk(req, buffer);
 
-	snprintf(buffer, sizeof(buffer), "target voltage: %" PRIu32 " mV\n", adc_read_system_voltage());
+	snprintf(buffer, sizeof(buffer), "target voltage: %" PRIu32 " mV\n", voltages_mv[ADC_TARGET_VOLTAGE]);
 	httpd_resp_sendstr_chunk(req, buffer);
 
 	snprintf(buffer, sizeof(buffer),

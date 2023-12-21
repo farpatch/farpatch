@@ -1,3 +1,4 @@
+#include "farpatch_adc.h"
 #include "general.h"
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali.h"
@@ -5,7 +6,7 @@
 #include "esp_log.h"
 #include "sdkconfig.h"
 
-#define TAG "bmp-adc"
+#define TAG "farpatch-adc"
 
 static adc_cali_handle_t adc_cali_handle;
 static adc_oneshot_unit_handle_t adc_handle;
@@ -13,6 +14,9 @@ static const adc_oneshot_chan_cfg_t channel_config = {
 	.bitwidth = ADC_BITWIDTH_DEFAULT,
 	.atten = ADC_ATTEN_DB_2_5,
 };
+
+int32_t voltages_mv[ADC_VOLTAGE_COUNT] = {};
+#define ADC_POLL_RATE_MS 100
 
 static bool adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_cali_handle_t *out_handle)
 {
@@ -77,79 +81,61 @@ static bool adc_init(adc_cali_handle_t *adc_cali_handle, adc_oneshot_unit_handle
 	return true;
 }
 
-int32_t adc_read_system_voltage(void)
+int32_t adc_read_voltage(adc_channel_t channel)
 {
 	int adc_reading;
 	int voltage_reading;
-	static bool channel_configured = false;
-
-	if (adc_handle == NULL && !adc_init(&adc_cali_handle, &adc_handle, CONFIG_VREF_ADC_UNIT)) {
-		return -1;
-	}
-	if (!channel_configured) {
-		ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, CONFIG_VREF_ADC_CHANNEL, &channel_config));
-	}
-
-	ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, CONFIG_VREF_ADC_CHANNEL, &adc_reading));
-	ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, CONFIG_VREF_ADC_CHANNEL, &adc_reading));
-	// ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Data: %d", CONFIG_VREF_ADC_UNIT + 1, CONFIG_VREF_ADC_CHANNEL, adc_reading);
-	// ESP_LOGD(TAG, "raw  data: %d", adc_reading);
-
+	ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, channel, &adc_reading));
 	ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc_cali_handle, adc_reading, &voltage_reading));
-	// ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", CONFIG_VREF_ADC_UNIT + 1, CONFIG_VREF_ADC_CHANNEL, voltage_reading);
 
 	// Farpatch has a divider that's 82k on top and 20k on the bottom. We're using 2.5 dB
 	// attenuation, so also multiply it by 1.33 (aka 4/3).
-	int adjusted_voltage = (voltage_reading * 4 * 82) / 20 / 3;
-	ESP_LOGD(TAG, "cal data: %d mV, adjusted: %d mV", voltage_reading, adjusted_voltage);
-
-	return adjusted_voltage;
+	return (voltage_reading * 4 * 82) / 20 / 3;
 }
 
-#if CONFIG_TMS_ADC_UNIT >= 0
-int32_t adc_read_tms_voltage(void)
+void adc_task(void *ignored)
 {
-	int adc_reading;
-	int voltage_reading;
-	static bool channel_configured = false;
+	(void)ignored;
 
-	if (adc_handle == NULL && !adc_init(&adc_cali_handle, &adc_handle, CONFIG_TMS_ADC_UNIT)) {
-		return -1;
-	}
-	if (!channel_configured) {
-		ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, CONFIG_TMS_ADC_CHANNEL, &channel_config));
+	ESP_LOGI(TAG, "ADC task started");
+	if (!adc_init(&adc_cali_handle, &adc_handle, CONFIG_VREF_ADC_UNIT)) {
+		ESP_LOGE(TAG, "ADC init failed");
+		vTaskDelete(NULL);
+		return;
 	}
 
-	ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, CONFIG_TMS_ADC_CHANNEL, &adc_reading));
-	ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, CONFIG_TMS_ADC_CHANNEL, &adc_reading));
-	ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc_cali_handle, adc_reading, &voltage_reading));
-	int adjusted_voltage = (voltage_reading * 4 * 82) / 20 / 3;
-	ESP_LOGD(TAG, "cal data: %d mV, adjusted: %d mV", voltage_reading, adjusted_voltage);
+	if (CONFIG_ADC_SYSTEM_CHANNEL >= 0) {
+		ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, CONFIG_ADC_SYSTEM_CHANNEL, &channel_config));
+	}
+	if (CONFIG_VREF_ADC_CHANNEL >= 0) {
+		ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, CONFIG_VREF_ADC_CHANNEL, &channel_config));
+	}
+	if (CONFIG_ADC_USB_CHANNEL >= 0) {
+		ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, CONFIG_ADC_USB_CHANNEL, &channel_config));
+	}
+	if (CONFIG_ADC_EXT_CHANNEL >= 0) {
+		ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, CONFIG_ADC_EXT_CHANNEL, &channel_config));
+	}
+	if (CONFIG_ADC_DEBUG_CHANNEL >= 0) {
+		ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, CONFIG_ADC_DEBUG_CHANNEL, &channel_config));
+	}
 
-	return adjusted_voltage;
+	while (true) {
+		if (CONFIG_ADC_SYSTEM_CHANNEL >= 0) {
+			voltages_mv[ADC_SYSTEM_VOLTAGE] = adc_read_voltage(CONFIG_ADC_SYSTEM_CHANNEL);
+		}
+		if (CONFIG_VREF_ADC_CHANNEL >= 0) {
+			voltages_mv[ADC_TARGET_VOLTAGE] = adc_read_voltage(CONFIG_VREF_ADC_CHANNEL);
+		}
+		if (CONFIG_ADC_USB_CHANNEL >= 0) {
+			voltages_mv[ADC_USB_VOLTAGE] = adc_read_voltage(CONFIG_ADC_USB_CHANNEL);
+		}
+		if (CONFIG_ADC_EXT_CHANNEL >= 0) {
+			voltages_mv[ADC_EXT_VOLTAGE] = adc_read_voltage(CONFIG_ADC_EXT_CHANNEL);
+		}
+		if (CONFIG_ADC_DEBUG_CHANNEL >= 0) {
+			voltages_mv[ADC_DEBUG_VOLTAGE] = adc_read_voltage(CONFIG_ADC_DEBUG_CHANNEL);
+		}
+		vTaskDelay(ADC_POLL_RATE_MS / portTICK_PERIOD_MS);
+	}
 }
-#endif
-
-#if CONFIG_TDO_ADC_UNIT >= 0
-int32_t adc_read_tdo_voltage(void)
-{
-	int adc_reading;
-	int voltage_reading;
-	static bool channel_configured = false;
-
-	if (adc_handle == NULL && !adc_init(&adc_cali_handle, &adc_handle, CONFIG_TDO_ADC_UNIT)) {
-		return -1;
-	}
-	if (!channel_configured) {
-		ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, CONFIG_TDO_ADC_CHANNEL, &channel_config));
-	}
-
-	ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, CONFIG_TDO_ADC_CHANNEL, &adc_reading));
-	ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, CONFIG_TDO_ADC_CHANNEL, &adc_reading));
-	ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc_cali_handle, adc_reading, &voltage_reading));
-	int adjusted_voltage = (voltage_reading * 4 * 82) / 20 / 3;
-	ESP_LOGD(TAG, "cal data: %d mV, adjusted: %d mV", voltage_reading, adjusted_voltage);
-
-	return adjusted_voltage;
-}
-#endif
