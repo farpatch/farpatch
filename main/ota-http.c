@@ -86,7 +86,7 @@ esp_err_t cgi_flash_upload(httpd_req_t *req)
 
 	ESP_LOGI(TAG, "esp ota succeeded");
 
-	httpd_resp_set_type(req, "text/json");
+	httpd_resp_set_type(req, HTTPD_TYPE_JSON);
 	const char response[] = "{\"success\": true}";
 	httpd_resp_send(req, response, sizeof(response) - 1);
 

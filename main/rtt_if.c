@@ -154,7 +154,7 @@ esp_err_t cgi_rtt_status(httpd_req_t *req)
 		rtt_flag_block ? "true" : "false",   // 10
 		value_string                         // 11
 	);
-	httpd_resp_set_type(req, "text/json");
+	httpd_resp_set_type(req, HTTPD_TYPE_JSON);
 	httpd_resp_send(req, buff, len);
 
 	return ESP_OK;

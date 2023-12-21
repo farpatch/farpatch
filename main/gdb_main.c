@@ -1,4 +1,4 @@
-
+#include <freertos/FreeRTOS.h>
 
 #include <assert.h>
 #include <inttypes.h>
@@ -21,7 +21,19 @@
 #include "platform.h"
 #include "rtt.h"
 
+SemaphoreHandle_t bmp_core_mutex = NULL;
+
 static int num_clients;
+
+void bmp_core_lock(void)
+{
+	xSemaphoreTake(bmp_core_mutex, portMAX_DELAY);
+}
+
+void bmp_core_unlock(void)
+{
+	xSemaphoreGive(bmp_core_mutex);
+}
 
 char *gdb_packet_buffer(void)
 {
@@ -154,6 +166,8 @@ void gdb_net_task(void *arg)
 	struct sockaddr_in addr;
 	int gdb_if_serv;
 	int opt;
+
+	bmp_core_mutex = xSemaphoreCreateMutex();
 
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(CONFIG_TCP_PORT);

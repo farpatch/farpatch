@@ -303,4 +303,8 @@
 #define TDO_VOLTAGE_ADC_PRESENT 1
 #endif
 
+// This mutex protects the BMP core across multiple threads
+extern void bmp_core_lock();
+extern void bmp_core_unlock();
+
 #endif /* __BLACKMAGIC_GENERAL_H__ */

@@ -458,15 +458,16 @@ void app_main(void)
 
 	ESP_ERROR_CHECK(nvs_open("config", NVS_READWRITE, &h_nvs_conf));
 
-	xTaskCreate(&adc_task, "adc", 256, NULL, 10, NULL);
-
 	bm_update_wifi_ssid();
 	bm_update_wifi_ps();
 
+	ESP_LOGI(TAG, "starting ADC monitor");
+	xTaskCreate(&adc_task, "adc", 2048, NULL, 10, NULL);
+
 	ESP_LOGI(TAG, "starting wifi manager");
 	wifi_manager_start();
-	ESP_LOGI(TAG, "starting web server");
 
+	ESP_LOGI(TAG, "starting web server");
 	// There needs to be a small delay after the wifi manager starts in order to
 	// ensure networking is running.
 	vTaskDelay(pdMS_TO_TICKS(200));

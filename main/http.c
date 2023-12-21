@@ -1,6 +1,5 @@
 #include <string.h>
 #include <stdio.h>
-// typedef uint8_t uint8;
 
 #include "frogfs/frogfs.h"
 #include <esp_http_server.h>
@@ -9,6 +8,8 @@
 #include <freertos/semphr.h>
 #include <freertos/queue.h>
 #include <freertos/list.h>
+#include "exception.h"
+#include "general.h"
 #include "platform.h"
 #include "hashmap.h"
 #include "ota-http.h"
@@ -23,7 +24,6 @@
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 
-const static char http_content_type_json[] = "application/json";
 const static char http_cache_control_hdr[] = "Cache-Control";
 const static char http_cache_control_no_cache[] = "no-store, no-cache, must-revalidate, max-age=0";
 // const static char http_cache_control_cache[] = "public, max-age=31536000";
@@ -39,15 +39,22 @@ extern esp_err_t cgi_rtt_status(httpd_req_t *req);
 
 #define TAG "httpd"
 
+static esp_err_t http_resp_empty_json(httpd_req_t *req)
+{
+	httpd_resp_set_type(req, HTTPD_TYPE_JSON);
+	httpd_resp_set_hdr(req, http_cache_control_hdr, http_cache_control_no_cache);
+	httpd_resp_set_hdr(req, http_pragma_hdr, http_pragma_no_cache);
+	httpd_resp_send(req, "{}", 2);
+
+	return ESP_OK;
+}
+
 esp_err_t cgi_uart_break(httpd_req_t *req)
 {
 	void uart_send_break();
 	uart_send_break();
 
-	httpd_resp_set_type(req, "text/json");
-	httpd_resp_send(req, "{}", 2);
-
-	return ESP_OK;
+	return http_resp_empty_json(req);
 }
 
 static esp_err_t cgi_baud(httpd_req_t *req)
@@ -69,7 +76,7 @@ static esp_err_t cgi_baud(httpd_req_t *req)
 	uart_get_baudrate(TARGET_UART_IDX, &baud);
 
 	len = snprintf(buff, sizeof(buff), "{\"baudrate\": %lu }", baud);
-	httpd_resp_set_type(req, "text/json");
+	httpd_resp_set_type(req, HTTPD_TYPE_JSON);
 	httpd_resp_send(req, buff, len);
 
 	return ESP_OK;
@@ -119,22 +126,119 @@ static const char *core_str(int core_id)
 }
 #endif
 
+struct output_context {
+	char *buffer;
+	size_t buffer_size;
+	int first;
+};
+
+static void append_target_to_output(size_t idx, target_s *target, void *context)
+{
+	(void)idx;
+	struct output_context *ctx = (struct output_context *)context;
+
+	if (ctx->buffer_size == 0) {
+		return;
+	}
+
+	const char *const attached = target_attached(target) ? "true" : "false";
+	const char *const core_name = target_core_name(target);
+	// Append a comma if this isn't the first target
+	if (ctx->first) {
+		ctx->first = 0;
+	} else {
+		ctx->buffer[0] = ',';
+		ctx->buffer += 1;
+		ctx->buffer[0] = '\0';
+		ctx->buffer_size -= 1;
+	}
+	if (ctx->buffer_size == 0) {
+		return;
+	}
+
+	int len;
+	if (!strcmp(target_driver_name(target), "ARM Cortex-M")) {
+		len = snprintf(ctx->buffer, ctx->buffer_size - 1,
+			"{\"attached\":%s,\"driver\":\"%s\",\"designer\":%d,\"part_id\":%d,\"core_name\":\"%s\"}", attached,
+			target_driver_name(target), target_designer(target), target_part_id(target), core_name ? core_name : "");
+	} else {
+		len = snprintf(ctx->buffer, ctx->buffer_size - 1, "{\"attached\":%s,\"driver\":\"%s\",\"core_name\":\"%s\"}",
+			attached, target_driver_name(target), core_name ? core_name : "");
+	}
+	ctx->buffer += len;
+	ctx->buffer_size -= len;
+}
+
+static void maybe_init_exceptions(void)
+{
+	static int initialized = 0;
+	static void *tls[2] = {};
+	if (initialized) {
+		return;
+	}
+	vTaskSetThreadLocalStoragePointer(NULL, 1 /* GDB_TLS_INDEX */, tls); // used for exception handling
+	initialized = 1;
+}
+
+static esp_err_t cgi_scan_jtag(httpd_req_t *req)
+{
+	maybe_init_exceptions();
+	bmp_core_lock();
+	volatile exception_s e;
+	TRY_CATCH (e, EXCEPTION_ALL) {
+		jtag_scan();
+	}
+	switch (e.type) {
+	case EXCEPTION_TIMEOUT:
+		ESP_LOGE(TAG, "Timeout during scan. Is target stuck in WFI?\n");
+		break;
+	case EXCEPTION_ERROR:
+		ESP_LOGE(TAG, "Exception: %s\n", e.msg);
+		break;
+	}
+	bmp_core_unlock();
+
+	return http_resp_empty_json(req);
+}
+
+static esp_err_t cgi_scan_swd(httpd_req_t *req)
+{
+	maybe_init_exceptions();
+	bmp_core_lock();
+	volatile exception_s e;
+	TRY_CATCH (e, EXCEPTION_ALL) {
+		adiv5_swd_scan(0);
+	}
+	switch (e.type) {
+	case EXCEPTION_TIMEOUT:
+		ESP_LOGE(TAG, "Timeout during scan. Is target stuck in WFI?\n");
+		break;
+	case EXCEPTION_ERROR:
+		ESP_LOGE(TAG, "Exception: %s\n", e.msg);
+		break;
+	}
+	bmp_core_unlock();
+
+	return http_resp_empty_json(req);
+}
+
 static esp_err_t cgi_status(httpd_req_t *req)
 {
 	char buffer[256];
 
-	httpd_resp_set_type(req, http_content_type_json);
+	httpd_resp_set_type(req, HTTPD_TYPE_JSON);
 	httpd_resp_set_hdr(req, http_cache_control_hdr, http_cache_control_no_cache);
 	httpd_resp_set_hdr(req, http_pragma_hdr, http_pragma_no_cache);
+	httpd_resp_set_hdr(req, "Connection", "Close");
 
 	// Open the JSON tag and send version information
 	snprintf(buffer, sizeof(buffer) - 1,
 		"{"
 		"\"version\":{"
 		"\"farpatch\":\"" FARPATCH_VERSION "\", "
-		"\"esp-idf\":\"%s\","
+		"\"esp_idf\":\"%s\","
 		"\"bmp\":\"" BMP_VERSION "\","
-		"\"build-time\":\"" BUILD_TIMESTAMP "\","
+		"\"build_time\":\"" BUILD_TIMESTAMP "\","
 		"\"hardware\":\"" HARDWARE_VERSION "\""
 		"}",
 		esp_get_idf_version());
@@ -144,7 +248,7 @@ static esp_err_t cgi_status(httpd_req_t *req)
 	snprintf(buffer, sizeof(buffer) - 1,
 		",\"system\": {"
 		"\"heap\": %" PRIu32 ","
-		"\"uptime\": %" PRIu32 "}",
+		"\"uptime_ms\": %" PRIu32 "}",
 		esp_get_free_heap_size(), xTaskGetTickCount() * portTICK_PERIOD_MS);
 	httpd_resp_sendstr_chunk(req, buffer);
 
@@ -155,10 +259,27 @@ static esp_err_t cgi_status(httpd_req_t *req)
 		"\"target\": %" PRIu32 ","
 		"\"usb\": %" PRIu32 ","
 		"\"debug\": %" PRIu32 ","
-		"\"ext\": %" PRIu32 ","
-		"}",
+		"\"ext\": %" PRIu32 "}",
 		voltages_mv[ADC_SYSTEM_VOLTAGE], voltages_mv[ADC_TARGET_VOLTAGE], voltages_mv[ADC_USB_VOLTAGE],
 		voltages_mv[ADC_DEBUG_VOLTAGE], voltages_mv[ADC_EXT_VOLTAGE]);
+	httpd_resp_sendstr_chunk(req, buffer);
+
+	// Targets
+	snprintf(buffer, sizeof(buffer) - 1,
+		",\"targets\": {"
+		"\"available\":[");
+	bmp_core_lock();
+	{
+		struct output_context ctx = {
+			.buffer = buffer + strlen(buffer),
+			.buffer_size = sizeof(buffer) - strlen(buffer),
+			.first = 1,
+		};
+		target_foreach(append_target_to_output, &ctx);
+	}
+	bmp_core_unlock();
+	snprintf(buffer + strlen(buffer), sizeof(buffer) - strlen(buffer) - 1, "]}");
+	httpd_resp_sendstr_chunk(req, buffer);
 
 	// UART status
 	uint32_t target_baud = 0;
@@ -179,6 +300,7 @@ static esp_err_t cgi_status(httpd_req_t *req)
 
 	// Close the JSON tag
 	httpd_resp_sendstr_chunk(req, "}");
+	httpd_resp_send_chunk(req, NULL, 0);
 
 	return ESP_OK;
 }
@@ -450,6 +572,16 @@ static const httpd_uri_t basic_handlers[] = {
 		.uri = "/fp/status",
 		.method = HTTP_GET,
 		.handler = cgi_status,
+	},
+	{
+		.uri = "/fp/scan/jtag",
+		.method = HTTP_GET,
+		.handler = cgi_scan_jtag,
+	},
+	{
+		.uri = "/fp/scan/swd",
+		.method = HTTP_GET,
+		.handler = cgi_scan_swd,
 	},
 	{
 		.uri = "/wifi",
