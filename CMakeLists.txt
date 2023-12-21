@@ -17,11 +17,19 @@ if(GIT_FOUND)
   execute_process(
     COMMAND ${GIT_EXECUTABLE} describe --always --dirty --tags
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    OUTPUT_VARIABLE _build_version
+    OUTPUT_VARIABLE _farpatch_build_version
     ERROR_QUIET
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
-  message( STATUS "GIT hash: ${_build_version}")
+  execute_process(
+    COMMAND ${GIT_EXECUTABLE} -C components/blackmagic/blackmagic describe --always --dirty --tags
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    OUTPUT_VARIABLE _bmp_version
+    ERROR_QUIET
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+  message( STATUS "Farpatch version: ${_farpatch_build_version}")
+  message( STATUS "Blackmagic version: ${_bmp_version}")
 else()
   message(STATUS "GIT not found")
 endif()

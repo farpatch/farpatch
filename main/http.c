@@ -16,11 +16,13 @@
 #include "wifi.h"
 #include "driver/uart.h"
 #include "uart.h"
+#include "version.h"
 
 #include "esp_attr.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 
+const static char http_content_type_json[] = "application/json";
 const static char http_cache_control_hdr[] = "Cache-Control";
 const static char http_cache_control_no_cache[] = "no-store, no-cache, must-revalidate, max-age=0";
 // const static char http_cache_control_cache[] = "public, max-age=31536000";
@@ -116,9 +118,52 @@ static const char *core_str(int core_id)
 }
 #endif
 
+static esp_err_t cgi_status(httpd_req_t *req)
+{
+	char buffer[256];
+
+	httpd_resp_set_type(req, http_content_type_json);
+	httpd_resp_set_hdr(req, http_cache_control_hdr, http_cache_control_no_cache);
+	httpd_resp_set_hdr(req, http_pragma_hdr, http_pragma_no_cache);
+
+	// Open the JSON tag and send version information
+	snprintf(buffer, sizeof(buffer) - 1,
+		"{"
+		"\"version\":{"
+		"\"farpatch\":\"" FARPATCH_VERSION "\", "
+		"\"esp-idf\":\"%s\","
+		"\"bmp\":\"" BMP_VERSION "\","
+		"\"build-time\":\"" BUILD_TIMESTAMP "\","
+		"\"hardware\":\"" HARDWARE_VERSION "\""
+		"}",
+		esp_get_idf_version());
+	httpd_resp_sendstr_chunk(req, buffer);
+
+	uint32_t target_baud = 0;
+	uint32_t uuart_baud = 0;
+	uint32_t swo_baud = 0;
+	extern int swo_active;
+	uart_get_baudrate(1, &target_baud);
+	uart_get_baudrate(0, &uuart_baud);
+	if (swo_active) {
+		uart_get_baudrate(2, &swo_baud);
+	}
+	snprintf(buffer, sizeof(buffer) - 1,
+		",\"ports\": {\"target\": {\"baudrate\": %" PRIu32 "}, \"uuart\": {\"baudrate\": %" PRIu32 "}, \"swo\": "
+		"{\"baudrate\": "
+		"%" PRIu32 "}}",
+		target_baud, uuart_baud, swo_baud);
+	httpd_resp_sendstr_chunk(req, buffer);
+
+	// Close the JSON tag
+	httpd_resp_sendstr_chunk(req, "}");
+
+	return ESP_OK;
+}
+
 int32_t adc_read_system_voltage(void);
 
-static esp_err_t cgi_status_header(httpd_req_t *req)
+static esp_err_t cgi_system_status_header(httpd_req_t *req)
 {
 	char buffer[256];
 
@@ -197,7 +242,7 @@ static esp_err_t cgi_status_header(httpd_req_t *req)
 	return ESP_OK;
 }
 
-static esp_err_t cgi_status(httpd_req_t *req)
+static esp_err_t cgi_system_status(httpd_req_t *req)
 {
 	TaskStatus_t *pxTaskStatusArray;
 	int i;
@@ -214,7 +259,7 @@ static esp_err_t cgi_status(httpd_req_t *req)
 	httpd_resp_set_hdr(req, http_pragma_hdr, http_pragma_no_cache);
 	httpd_resp_set_hdr(req, "Refresh", "1");
 
-	cgi_status_header(req);
+	cgi_system_status_header(req);
 
 #if CONFIG_FREERTOS_USE_TRACE_FACILITY
 	uxArraySize = uxTaskGetNumberOfTasks();
@@ -238,24 +283,6 @@ static esp_err_t cgi_status(httpd_req_t *req)
 		totalRuntime = 1;
 	}
 
-	// if (1 /*printInterrupts */) {
-	// 	char buff[512];
-	// 	int len = 0;
-
-	// 	int cpu = 0;
-	// 	int irq;
-	// 	for (cpu = 0; cpu < portNUM_PROCESSORS; cpu++) {
-	// 		len += snprintf(buff + len, sizeof(buff) - len, "CPU %d:", cpu);
-	// 		for (irq = 0; irq < 32; irq++) {
-	// 			len += snprintf(buff + len, sizeof(buff) - len, " %d", interrupt_controller_hal_has_handler(irq, cpu));
-	// 		}
-	// 		len += snprintf(buff + len, sizeof(buff) - len, "\n");
-	// 	}
-
-	// 	httpd_resp_send_chunk(req, buff, len);
-	// }
-
-	// ESP_LOGI(__func__, "looking through %d tasks", uxArraySize);
 	for (i = 0; (pxTaskStatusArray != NULL) && (i < uxArraySize); i++) {
 		int len;
 		char buff[256];
@@ -400,6 +427,11 @@ static esp_err_t cgi_frog_fs_hook(httpd_req_t *req)
 
 static const httpd_uri_t basic_handlers[] = {
 	{
+		.uri = "/fp/status",
+		.method = HTTP_GET,
+		.handler = cgi_status,
+	},
+	{
 		.uri = "/wifi",
 		.method = HTTP_GET,
 		.handler = cgi_redirect,
@@ -427,14 +459,7 @@ static const httpd_uri_t basic_handlers[] = {
 		.uri = "/flash/reboot",
 		.method = HTTP_GET,
 		.handler = cgi_flash_reboot,
-	}, // {
-	// 	.uri = "/flash/?",
-	// 	.method = HTTP_GET,
-	// 	.handler = cgi_redirect,
-	// 	.user_ctx = (void *)"/flash/index.html",
-	// },
-	// {"/flash/next", cgiGetFirmwareNext, &uploadParams, 0}, {"/flash/upload", cgiUploadFirmware, &uploadParams, 0},
-	// {"/flash/reboot", cgiRebootFirmware, NULL, 0},
+	},
 
 	// UART configuration
 	{
@@ -459,7 +484,7 @@ static const httpd_uri_t basic_handlers[] = {
 	{
 		.uri = "/status",
 		.method = HTTP_GET,
-		.handler = cgi_status,
+		.handler = cgi_system_status,
 	},
 	{
 		.uri = "/ws/debug",

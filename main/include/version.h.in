@@ -1,3 +1,28 @@
+#include "sdkconfig.h"
 #pragma once
-#define FIRMWARE_VERSION "@_build_version@"
+#define FIRMWARE_VERSION "@_farpatch_build_version@"
+#define FARPATCH_VERSION FIRMWARE_VERSION
+#define BMP_VERSION      "@_bmp_version@"
 #define BUILD_TIMESTAMP  "@_time_stamp@"
+
+#ifdef CONFIG_FARPATCH_DVT2
+#define HARDWARE_VERSION "Farpatch DVT2"
+#endif
+#ifdef CONFIG_FARPATCH_DVT3
+#define HARDWARE_VERSION "Farpatch DVT3"
+#endif
+#ifdef CONFIG_FARPATCH_DVT3_NOPSU
+#define HARDWARE_VERSION "Farpatch DVT3 (no power supply)"
+#endif
+#ifdef CONFIG_FARPATCH_DVT4
+#define HARDWARE_VERSION "Farpatch DVT4"
+#endif
+#ifdef CONFIG_ESP32C3_MINI1
+#define HARDWARE_VERSION "ESP32C3-MINI1"
+#endif
+#ifdef CONFIG_ESP32_WROVER_B
+#define HARDWARE_VERSION "ESP32-WROVER-B"
+#endif
+#ifdef CONFIG_CUSTOM_HARDWARE
+#define HARDWARE_VERSION "Custom PCB"
+#endif
