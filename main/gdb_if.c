@@ -36,7 +36,6 @@
 
 #include "gdb_if.h"
 #include "gdb_packet.h"
-#include "gdb_hostio.h"
 
 #include "exception.h"
 #include "general.h"
