@@ -17,6 +17,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include "farpatch_adc.h"
 #include "general.h"
 #include "gdb_if.h"
 #include "version.h"
@@ -117,12 +118,8 @@ void platform_init(void)
 	gpio_reset_pin(CONFIG_TCK_TDI_DIR_GPIO);
 #endif
 
+#if CONFIG_VREF_ADC_GPIO >= 0
 	gpio_reset_pin(CONFIG_VREF_ADC_GPIO);
-#if defined(TMS_VOLTAGE_ADC_PRESENT)
-	gpio_reset_pin(CONFIG_TMS_ADC_GPIO);
-#endif
-#if defined(TDO_VOLTAGE_ADC_PRESENT)
-	gpio_reset_pin(CONFIG_TDO_ADC_GPIO);
 #endif
 
 	// Reset Button
@@ -362,34 +359,21 @@ bool platform_nrst_get_val(void)
 
 uint32_t platform_target_voltage_sense(void)
 {
-	extern int32_t adc_read_system_voltage(void);
-	int32_t adjusted_voltage = adc_read_system_voltage();
-	if (adjusted_voltage < 0) {
-		return 0;
-	}
 	// Convert mV to dV (e.g. 3300 -> 33 for 3.3V)
-	return adjusted_voltage / 100;
+	return voltages_mv[ADC_TARGET_VOLTAGE] / 100;
 }
 
 const char *platform_target_voltage(void)
 {
 	static char voltage[48];
-	extern int32_t adc_read_system_voltage(void);
 
-	int32_t adjusted_voltage = adc_read_system_voltage();
+	int32_t adjusted_voltage = voltages_mv[ADC_TARGET_VOLTAGE];
 	if (adjusted_voltage == -1) {
 		snprintf(voltage, sizeof(voltage) - 1, "unknown");
 		return voltage;
 	}
 
-#if TMS_VOLTAGE_ADC_PRESENT && TDO_VOLTAGE_ADC_PRESENT
-	extern int32_t adc_read_tms_voltage(void);
-	extern int32_t adc_read_tdo_voltage(void);
-	snprintf(voltage, sizeof(voltage) - 1, "%ldmV (TMS: %ldmV, TDO: %ld mV)", adjusted_voltage, adc_read_tms_voltage(),
-		adc_read_tdo_voltage());
-#else
 	snprintf(voltage, sizeof(voltage) - 1, "%ldmV", adjusted_voltage);
-#endif
 	return voltage;
 }
 
@@ -421,11 +405,11 @@ bool cmd_setbaud(target_s *t, int argc, const char **argv)
 	uint32_t baud;
 	if (argc == 1) {
 		uart_get_baudrate(TARGET_UART_IDX, &baud);
-		gdb_outf("Current baud: %"PRIu32"\n", baud);
+		gdb_outf("Current baud: %" PRIu32 "\n", baud);
 	}
 	if (argc == 2) {
 		baud = strtoul(argv[1], NULL, 0);
-		gdb_outf("Setting baud: %"PRIu32"\n", baud);
+		gdb_outf("Setting baud: %" PRIu32 "\n", baud);
 		platform_set_baud(baud);
 	}
 
@@ -475,6 +459,8 @@ void app_main(void)
 	ESP_ERROR_CHECK(ret);
 
 	ESP_ERROR_CHECK(nvs_open("config", NVS_READWRITE, &h_nvs_conf));
+
+	xTaskCreate(&adc_task, "adc", 256, NULL, 10, NULL);
 
 	bm_update_wifi_ssid();
 	bm_update_wifi_ps();
