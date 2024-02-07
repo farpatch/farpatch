@@ -118,7 +118,9 @@ void platform_init(void)
 	gpio_reset_pin(CONFIG_TCK_TDI_DIR_GPIO);
 #endif
 
+#if CONFIG_VREF_ADC_GPIO >= 0
 	gpio_reset_pin(CONFIG_VREF_ADC_GPIO);
+#endif
 
 	// Reset Button
 	{
