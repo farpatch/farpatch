@@ -289,6 +289,7 @@ static esp_err_t cgi_system_status(httpd_req_t *req)
 #else
 	pxTaskStatusArray = NULL;
 	uxArraySize = 0;
+	totalRuntime = 0;
 #endif
 	i = 0;
 
