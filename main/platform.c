@@ -238,7 +238,7 @@ void platform_init(void)
 	}
 #endif
 
-#if CONFIG_TCK_TDI_DIR_GPIO >= 0
+#if defined(CONFIG_TCK_TDI_DIR_GPIO) && CONFIG_TCK_TDI_DIR_GPIO >= 0
 	// TCK/TDI level shifter direction
 	{
 		const gpio_config_t gpio_conf = {
@@ -312,17 +312,15 @@ void platform_init(void)
 }
 
 #ifdef PLATFORM_HAS_POWER_SWITCH
+static bool tpwr_enabled = false;
 bool platform_target_get_power(void)
 {
-#if defined(CONFIG_FARPATCH_DVT4)
-	return gpio_get_level(CONFIG_VTARGET_EN_GPIO);
-#else
-	return !gpio_get_level(CONFIG_VTARGET_EN_GPIO);
-#endif
+	return tpwr_enabled;
 }
 
 bool platform_target_set_power(bool power)
 {
+	tpwr_enabled = power;
 #if defined(CONFIG_FARPATCH_DVT4)
 	gpio_set_level(CONFIG_VTARGET_EN_GPIO, power);
 #else
@@ -418,9 +416,13 @@ bool cmd_setbaud(target_s *t, int argc, const char **argv)
 
 /// Enable or disable the clock output pin. This is not configured on
 /// current Farpatch designs, but will be used in a future model.
-void platform_target_clk_output_enable(bool _enabled)
+void platform_target_clk_output_enable(bool enabled)
 {
-	(void)_enabled;
+#if defined(CONFIG_TCK_TDI_DIR_GPIO) && CONFIG_TCK_TDI_DIR_GPIO >= 0
+	gpio_set_level(CONFIG_NRST_GPIO, !enabled);
+#else
+	(void)enabled;
+#endif
 }
 
 int vprintf_noop(const char *s, va_list va)
@@ -432,6 +434,8 @@ extern void gdb_net_task();
 
 void app_main(void)
 {
+	esp_err_t ret;
+
 	ESP_LOGI(__func__, "starting farpatch");
 #if CONFIG_LED_GPIO >= 0
 	gpio_reset_pin(CONFIG_LED_GPIO);
@@ -443,6 +447,11 @@ void app_main(void)
 	gpio_set_direction(CONFIG_LED2_GPIO, GPIO_MODE_OUTPUT);
 	gpio_set_level(CONFIG_LED2_GPIO, 1);
 #endif
+#if defined(CONFIG_UUART_TX_DIR_GPIO) && CONFIG_UART_TX_DIR_GPIO >= 0
+	gpio_reset_pin(CONFIG_UART_TX_DIR_GPIO);
+	gpio_set_direction(CONFIG_UART_TX_DIR_GPIO, GPIO_MODE_OUTPUT);
+	gpio_set_level(CONFIG_UART_TX_DIR_GPIO, 0);
+#endif
 
 #ifdef CONFIG_DEBUG_UART
 	uart_dbg_install();
@@ -451,8 +460,8 @@ void app_main(void)
 	esp_log_set_vprintf(vprintf_noop);
 #endif
 
-	esp_err_t ret = nvs_flash_init();
-	if (ret == ESP_ERR_NVS_NO_FREE_PAGES) {
+	ret = nvs_flash_init();
+	if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
 		ESP_ERROR_CHECK(nvs_flash_erase());
 		ret = nvs_flash_init();
 	}
@@ -460,7 +469,9 @@ void app_main(void)
 
 	ESP_ERROR_CHECK(nvs_open("config", NVS_READWRITE, &h_nvs_conf));
 
-	xTaskCreate(&adc_task, "adc", 256, NULL, 10, NULL);
+	// TODO: ADC task is currently broken. It corrupts something in RAM which
+	// manifests itself as a problem with NVS.
+	// xTaskCreate(adc_task, "adc", 1024, NULL, 10, NULL);
 
 	bm_update_wifi_ssid();
 	bm_update_wifi_ps();

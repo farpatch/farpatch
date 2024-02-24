@@ -80,10 +80,13 @@
 	do {                                         \
 		ESP_LOGI_BMP("BMP:I", x, ##__VA_ARGS__); \
 	} while (0)
+#if 0
 #define DEBUG_GDB(x, ...)                      \
 	do {                                       \
 		ESP_LOGI_BMP("GDB", x, ##__VA_ARGS__); \
 	} while (0)
+#endif
+#define DEBUG_GDB(x, ...)    PRINT_NOOP()
 #define DEBUG_TARGET(x, ...)                    \
 	do {                                        \
 		ESP_LOGI_BMP("TARG", x, ##__VA_ARGS__); \
@@ -217,6 +220,40 @@
 #define CONFIG_VSEL_USB_GPIO    35
 #define CONFIG_VSEL_EXTRA_GPIO  36
 
+#elif defined(CONFIG_FARPATCH_DVT5)
+#define CONFIG_TDI_GPIO           12
+#define CONFIG_TDO_GPIO           18
+#define CONFIG_TMS_SWDIO_GPIO     36
+#define CONFIG_TMS_SWDIO_DIR_GPIO 35
+#define CONFIG_TCK_SWCLK_GPIO     13
+#define CONFIG_NRST_GPIO          47
+#define CONFIG_LED_GPIO           34
+#define CONFIG_LED2_GPIO          9
+#define CONFIG_TCK_TDI_DIR_GPIO   11
+#define CONFIG_UART_TX_DIR_GPIO   37
+#define CONFIG_UART_TX_GPIO       26
+#define CONFIG_UART_RX_GPIO       17
+#define CONFIG_VREF_ADC_GPIO      8
+#define CONFIG_VREF_ADC_UNIT      ADC_UNIT_1
+#define CONFIG_VREF_ADC_CHANNEL   ADC_CHANNEL_7
+#define CONFIG_ADC_SYSTEM_UNIT    ADC_UNIT_1
+#define CONFIG_ADC_SYSTEM_CHANNEL ADC_CHANNEL_3
+#define CONFIG_ADC_USB_UNIT       ADC_UNIT_2
+#define CONFIG_ADC_USB_CHANNEL    ADC_CHANNEL_3
+#define CONFIG_ADC_EXT_UNIT       ADC_UNIT_1
+#define CONFIG_ADC_EXT_CHANNEL    ADC_CHANNEL_5
+#define CONFIG_ADC_DEBUG_UNIT     ADC_UNIT_1
+#define CONFIG_ADC_DEBUG_CHANNEL  ADC_CHANNEL_4
+
+#define CONFIG_RESET_OPENDRAIN  1
+#define CONFIG_RESET_SENSE_GPIO 7
+
+#define CONFIG_VTARGET_EN_GPIO 33
+
+#define CONFIG_UUART_PRESENT 1
+#define CONFIG_UUART_TX_GPIO 48
+#define CONFIG_UUART_RX_GPIO 10
+
 #elif defined(CONFIG_ESP32C3_MINI1)
 #define CONFIG_TDI_GPIO           4
 #define CONFIG_TDO_GPIO           5
@@ -273,7 +310,7 @@
 #elif defined(CONFIG_CUSTOM_HARDWARE)
 #define CONFIG_VREF_ADC_GPIO      -1
 #define CONFIG_VREF_ADC_UNIT      ADC_UNIT_1
-#define CONFIG_VREF_ADC_CHANNEL   ADC_CHANNEL_3
+#define CONFIG_VREF_ADC_CHANNEL   ADC_CHANNEL_7
 #define CONFIG_RESET_SENSE_GPIO   -1
 #define CONFIG_ADC_SYSTEM_CHANNEL -1
 #define CONFIG_ADC_SYSTEM_UNIT    -1
