@@ -45,9 +45,8 @@ static void gdb_wifi_destroy(struct bmp_wifi_instance *instance)
 
 	close(instance->sock);
 
-	TaskHandle_t pid = instance->pid;
 	free(instance);
-	vTaskDelete(pid);
+	vTaskDelete(NULL);
 }
 
 #define MAYBE_SLEEP(last, current)                                                                  \

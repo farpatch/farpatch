@@ -17,6 +17,9 @@
 #ifdef CONFIG_FARPATCH_DVT4
 #define HARDWARE_VERSION "Farpatch DVT4"
 #endif
+#ifdef CONFIG_FARPATCH_DVT5
+#define HARDWARE_VERSION "Farpatch DVT5"
+#endif
 #ifdef CONFIG_ESP32C3_MINI1
 #define HARDWARE_VERSION "ESP32C3-MINI1"
 #endif
