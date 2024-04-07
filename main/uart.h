@@ -4,7 +4,6 @@
 #include <stdarg.h>
 
 void uart_dbg_install(void);
-int vprintf_remote(const char *fmt, va_list va);
 void uart_init(void);
 
 #define TARGET_UART_DEV    UART1

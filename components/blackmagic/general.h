@@ -286,8 +286,8 @@ void bmp_core_unlock();
 #define CONFIG_RESET_OPENDRAIN    1
 
 #elif defined(CONFIG_M5_STAMP)
-#define CONFIG_TDI_GPIO           20
-#define CONFIG_TDO_GPIO           21
+#define CONFIG_TDI_GPIO           0
+#define CONFIG_TDO_GPIO           1
 #define CONFIG_TMS_SWDIO_GPIO     7
 #define CONFIG_TMS_SWDIO_DIR_GPIO -1
 #define CONFIG_TCK_SWCLK_GPIO     6

@@ -26,7 +26,7 @@
 
 const static char http_cache_control_hdr[] = "Cache-Control";
 const static char http_cache_control_no_cache[] = "no-store, no-cache, must-revalidate, max-age=0";
-// const static char http_cache_control_cache[] = "public, max-age=31536000";
+const static char http_content_type_json[] = "application/json";
 const static char http_pragma_hdr[] = "Pragma";
 const static char http_pragma_no_cache[] = "no-cache";
 
@@ -44,7 +44,7 @@ esp_err_t cgi_uart_break(httpd_req_t *req)
 	void uart_send_break();
 	uart_send_break();
 
-	httpd_resp_set_type(req, "text/json");
+	httpd_resp_set_type(req, http_content_type_json);
 	httpd_resp_send(req, "{}", 2);
 
 	return ESP_OK;
@@ -71,7 +71,7 @@ static esp_err_t cgi_baud(httpd_req_t *req)
 	uart_get_baudrate(TARGET_UART_IDX, &baud);
 
 	len = snprintf(buff, sizeof(buff), "{\"baudrate\": %lu }", baud);
-	httpd_resp_set_type(req, "text/json");
+	httpd_resp_set_type(req, http_content_type_json);
 	httpd_resp_send(req, buff, len);
 
 	return ESP_OK;
@@ -577,7 +577,7 @@ static const httpd_uri_t basic_handlers[] = {
 		.is_websocket = true,
 	},
 	{
-		.uri = "/rtt/status",
+		.uri = "/fp/rtt/status",
 		.handler = cgi_rtt_status,
 		.method = HTTP_GET,
 	},

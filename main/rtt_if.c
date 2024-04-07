@@ -17,6 +17,7 @@ static int udp_serv_sock = 0;
 static int tcp_client_sock = 0;
 
 static bool rtt_initialized;
+const static char http_content_type_json[] = "application/json";
 
 #define TAG "rtt"
 
@@ -180,7 +181,7 @@ esp_err_t cgi_rtt_status(httpd_req_t *req)
 		rtt_flag_block ? "true" : "false",   // 10
 		value_string                         // 11
 	);
-	httpd_resp_set_type(req, "text/json");
+	httpd_resp_set_type(req, http_content_type_json);
 	httpd_resp_send(req, buff, len);
 
 	return ESP_OK;
