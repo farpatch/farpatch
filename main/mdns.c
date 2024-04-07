@@ -4,6 +4,8 @@
 
 static const char *TAG = "farpatch-mdns";
 
+void wilma_unique_words(const char **name1, const char **name2);
+
 void initialise_mdns(const char *hostname)
 {
 	ESP_ERROR_CHECK(mdns_init());
@@ -11,7 +13,7 @@ void initialise_mdns(const char *hostname)
 		char generated_hostname[32];
 		const char *name1;
 		const char *name2;
-        generate_name(&name1, &name2);
+        wilma_unique_words(&name1, &name2);
         snprintf(generated_hostname, sizeof(generated_hostname) - 1, "farpatch-%s-%s", name1, name2);
 		ESP_ERROR_CHECK(mdns_hostname_set(generated_hostname));
 		ESP_LOGI(TAG, "mdns hostname set to: [%s]", generated_hostname);

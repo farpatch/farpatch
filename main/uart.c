@@ -67,7 +67,8 @@ void debug_putc(char c, int flush)
 	}
 }
 
-void debug_serial_send_stdout(const uint8_t *const data, const size_t len) {
+void debug_serial_send_stdout(const uint8_t *const data, const size_t len)
+{
 	size_t i;
 	for (i = 0; i < len; i++) {
 		debug_putc(data[i], 0);
@@ -85,7 +86,7 @@ static void putc_remote(void *ignored, char c)
 	debug_putc(c, c == '\n' ? 1 : 0);
 }
 
-int vprintf_remote(const char *fmt, va_list va)
+static int vprintf_remote(const char *fmt, va_list va)
 {
 	if (vprintf_orig) {
 		vprintf_orig(fmt, va);
@@ -103,27 +104,6 @@ void uart_dbg_install(void)
 	xTaskCreate(&dbg_log_task, "dbg_log_main", 2048, NULL, 4, NULL);
 }
 
-// void IRAM_ATTR uart_write_all(const uint8_t *data, int len)
-// {
-// #ifdef UART_USE_DMA_WRITE
-// 	uart_dma_write(UHCI_INDEX, data, len);
-// #else
-// 	while (len > 0) {
-// 		while (!uart_ll_is_tx_idle(&TARGET_UART_DEV)) {
-// 		}
-// 		uint16_t fill_len = uart_ll_get_txfifo_len(&TARGET_UART_DEV);
-// 		if (fill_len > len) {
-// 			fill_len = len;
-// 		}
-// 		len -= fill_len;
-// 		if (fill_len > 0) {
-// 			uart_ll_write_txfifo(&TARGET_UART_DEV, data, fill_len);
-// 		}
-// 		data += fill_len;
-// 	}
-// #endif
-// }
-
 static void net_uart_task(void *params)
 {
 	tcp_serv_sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -135,13 +115,13 @@ static void net_uart_task(void *params)
 
 	struct sockaddr_in saddr;
 	saddr.sin_addr.s_addr = 0;
-	saddr.sin_port = ntohs(23);
+	saddr.sin_port = ntohs(CONFIG_UART_TCP_PORT);
 	saddr.sin_family = AF_INET;
 
 	bind(tcp_serv_sock, (struct sockaddr *)&saddr, sizeof(saddr));
 
 	saddr.sin_addr.s_addr = 0;
-	saddr.sin_port = ntohs(2323);
+	saddr.sin_port = ntohs(CONFIG_UART_UDP_PORT);
 	saddr.sin_family = AF_INET;
 	bind(udp_serv_sock, (struct sockaddr *)&saddr, sizeof(saddr));
 	listen(tcp_serv_sock, 1);
@@ -312,7 +292,7 @@ void uart_init(void)
 	ESP_LOGI(__func__, "configuring UART%d for target", TARGET_UART_IDX);
 
 	// Start UART tasks
-	xTaskCreatePinnedToCore(uart_rx_task, "uart_rx_task", 4096, NULL, 1, NULL, 1);
+	xTaskCreate(uart_rx_task, "uart_rx_task", 4096, NULL, 1, NULL);
 	xTaskCreate(net_uart_task, "net_uart_task", 6 * 1024, NULL, 1, NULL);
 #endif
 }
