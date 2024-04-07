@@ -6,7 +6,7 @@
 #include "esp_log.h"
 #include "driver/gpio.h"
 #include "driver/gptimer.h"
-#include "wifi_manager.h"
+#include "wilma/wilma.h"
 
 #define TAG "wifi-reset"
 static gptimer_handle_t gptimer = NULL;
@@ -19,7 +19,7 @@ static IRAM_ATTR bool perform_wifi_reset(
 	gptimer_stop(gptimer);
 
 	if (gpio_get_level(GPIO_NUM_0) == 0) {
-		wifi_manager_send_message_from_isr(WM_ORDER_FORGET_CONFIG, NULL, &high_task_awoken);
+		wilma_forget_config_from_isr(&high_task_awoken);
 	}
 
 	// return whether we need to yield at the end of ISR

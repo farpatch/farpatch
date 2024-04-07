@@ -1,0 +1,65 @@
+/* Small screen  */
+@media only screen and (max-width: 600px) {
+    :root {
+        --nav-height: 4rem;
+        --view-padding: 1rem;
+    } 
+
+    main {
+        height: calc(100dvh - var(--nav-height));
+        margin: 0;
+        padding: 0;
+    }
+
+    .main-content {
+        height: calc(100dvh - var(--nav-height));
+        padding-bottom: calc(var(--nav-height) + var(--view-padding));
+    }
+
+    .main-sidebar-rail {
+        margin-left: 0;
+    }
+
+    .dashboard-view {
+        padding-top: 1rem;
+    }
+
+    .sidenav {
+        bottom: 0;
+        width: 100dvw;
+        /* BOTTOM BAR HEIGHT */
+        height: var(--nav-height);
+        align-items: flex-start;
+        /* padding-top: 0.4rem; */
+        transition: none;
+    }
+
+    .sidenav-rail {
+        width: 100dvw;
+        transition: none;
+    }
+
+    .sidenav-nav {
+        height: var(--nav-height);
+        flex-direction: row;
+        margin-top: 0;
+        align-items: flex-start;
+    }
+
+    .sidenav-link {
+        justify-content: center;
+    }
+
+    .link-text {
+        display: none;
+    }
+
+    #rail-toggle-button {
+        display: none;
+    }
+
+    .dashboard-view {
+        padding-top: calc(var(--nav-height) + var(--view-padding));
+        padding-bottom: calc(var(--nav-height) + var(--view-padding));
+    }
+}

@@ -16,6 +16,10 @@
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #endif
 
+// This mutex protects the BMP core across multiple threads
+void bmp_core_lock();
+void bmp_core_unlock();
+
 #ifdef ENABLE_DEBUG
 #include "esp_log.h"
 
@@ -280,6 +284,32 @@
 #define CONFIG_ADC_DEBUG_UNIT     -1
 //#define CONFIG_RESET_PUSHPULL     1
 #define CONFIG_RESET_OPENDRAIN    1
+
+#elif defined(CONFIG_M5_STAMP)
+#define CONFIG_TDI_GPIO           20
+#define CONFIG_TDO_GPIO           21
+#define CONFIG_TMS_SWDIO_GPIO     7
+#define CONFIG_TMS_SWDIO_DIR_GPIO -1
+#define CONFIG_TCK_SWCLK_GPIO     6
+#define CONFIG_NRST_GPIO          10
+#define CONFIG_RESET_SENSE_GPIO   -1
+#define CONFIG_LED_GPIO           -1
+#define CONFIG_LED2_GPIO          -1
+#define CONFIG_TCK_TDI_DIR_GPIO   -1
+#define CONFIG_UART_TX_GPIO       4
+#define CONFIG_UART_RX_GPIO       5
+#define CONFIG_VREF_ADC_GPIO      -1
+#define CONFIG_VREF_ADC_UNIT      -1
+#define CONFIG_VREF_ADC_CHANNEL   -1
+#define CONFIG_ADC_SYSTEM_CHANNEL -1
+#define CONFIG_ADC_SYSTEM_UNIT    -1
+#define CONFIG_ADC_USB_CHANNEL    -1
+#define CONFIG_ADC_USB_UNIT       -1
+#define CONFIG_ADC_EXT_CHANNEL    -1
+#define CONFIG_ADC_EXT_UNIT       -1
+#define CONFIG_ADC_DEBUG_CHANNEL  -1
+#define CONFIG_ADC_DEBUG_UNIT     -1
+#define CONFIG_RESET_PUSHPULL     1
 
 #elif defined(CONFIG_ESP32_WROVER_B)
 #define CONFIG_TDI_GPIO           25

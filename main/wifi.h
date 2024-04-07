@@ -3,12 +3,11 @@
 
 #include <esp_http_server.h>
 
-void generate_name(const char **name1, const char **name2);
-void bm_update_wifi_ssid(void);
-void bm_update_wifi_ps(void);
-
-esp_err_t cgi_ap_json(httpd_req_t *req);
-esp_err_t cgi_connect_json(httpd_req_t *req);
-esp_err_t cgi_status_json(httpd_req_t *req);
+esp_err_t cgi_sta_scan_results_json(httpd_req_t *req);
+esp_err_t cgi_ap_config_json(httpd_req_t *req);
+esp_err_t cgi_sta_start_scan_json(httpd_req_t *req);
+esp_err_t cgi_sta_connect_json(httpd_req_t *req);
+esp_err_t cgi_sta_status_json(httpd_req_t *req);
+esp_err_t cgi_ap_configure(httpd_req_t *req);
 
 #endif /* __BLACKMAGIC_WIFI_H__ */

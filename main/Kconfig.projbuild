@@ -1,10 +1,4 @@
-menu "Blackmagic Configuration"
-
-    config MAX_STA_CONN
-        int "Maximum number of wifi clients in AP mode"
-        default 4
-        help
-        Max number of wifi clients that can connect to AP mode.
+menu "Farpatch Configuration"
 
     choice HARDWARE_MODEL
         prompt "Hardware Model"
@@ -31,6 +25,9 @@ menu "Blackmagic Configuration"
         config ESP32C3_MINI1
             depends on IDF_TARGET_ESP32C3
             bool "ESP32C3-MINI1"
+        config M5_STAMP
+            depends on IDF_TARGET_ESP32C3
+            bool "M5 Stamp"
         config ESP32_WROVER_B
             depends on IDF_TARGET_ESP32
             bool "ESP32-WROVER-B"
@@ -114,16 +111,99 @@ menu "Blackmagic Configuration"
         help
         Pin to use for UART RX
 
-    config DEBUG_UART
-        bool "Use debug UART for log messages"
+    config ESP_DEBUG_LOGS
+        bool "Enable ESP debug logs"
         default y
         help
-        Uses the ESP32 debug UART to monitor blackmagic messages.
+        Make ESP debug logs available via websockets
 
-    config TCP_PORT
+    config GDB_TCP_PORT
         int "TCP port number"
         default 2022
         help
         TCP port number that the GDB server will run on
 
+    config MAX_STA_CONN
+        int "Maximum number of wifi clients in AP mode"
+        default 4
+        help
+        Max number of wifi clients that can connect to AP mode.
+
+    config MAX_SSID_SCAN_RESULTS
+        int "Maximum number of results in an SSID scan"
+        default 40
+        help
+        Maximum number of entries in the list of available SSIDs.
+
+    config DEFAULT_AP_SSID_PREFIX
+        string "Access Point SSID Prefix"
+        default "Gibraltar"
+        help
+        SSID (network name) that the device will broadcast.
+
+    config DEFAULT_AP_PASSWORD
+        string "Access Point Password"
+        default ""
+        help
+        Password used for the Access Point. Leave empty and set AUTH MODE to WIFI_AUTH_OPEN for no password.
+
+    config DEFAULT_AP_CHANNEL
+        int "Access Point WiFi Channel"
+        default 1
+        help
+        Be careful you might not see the access point if you use a channel not allowed in your country.
+
+    config DEFAULT_AP_IP
+        string "Access Point IP Address"
+        default "10.10.0.1"
+        help
+        This is used for the redirection to the captive portal. It is recommended to leave unchanged.
+
+    config DEFAULT_AP_GATEWAY
+        string "Access Point IP Gateway"
+        default "10.10.0.1"
+        help
+        This is used for the redirection to the captive portal. It is recommended to leave unchanged.
+
+    config DEFAULT_AP_NETMASK
+        string "Access Point Netmask"
+        default "255.0.0.0"
+        help
+        This is used for the redirection to the captive portal. It is recommended to leave unchanged.
+
+    config DEFAULT_AP_MAX_CONNECTIONS
+        int "Access Point Max Connections"
+        default 4
+        help
+        Max is 4.
+
+    config DEFAULT_AP_BEACON_INTERVAL
+        int "Access Point Beacon Interval (ms)"
+        default 100
+        help
+        100ms is the recommended default.
+
+    config RTT_TCP_PORT
+        int "TCP port number for RTT access"
+        default 2123
+        help
+        RTT will listen on this port for TCP connections. Use -1 to disable.
+
+    config RTT_UDP_PORT
+        int "UDP port number for RTT access"
+        default 2124
+        help
+        RTT will listen on this port for UDP connections. Use -1 to disable.
+
+    config UART_TCP_PORT
+        int "TCP port number for UART access"
+        default 23
+        help
+        UART will listen on this port for TCP connections. Use -1 to disable.
+
+    config UART_UDP_PORT
+        int "UDP port number for UART access"
+        default 2323
+        help
+        UART will listen on this port for UDP connections. Use -1 to disable.
 endmenu

@@ -1,4 +1,4 @@
-
+#include <freertos/FreeRTOS.h>
 
 #include <assert.h>
 #include <inttypes.h>
@@ -21,9 +21,20 @@
 #include "platform.h"
 #include "rtt.h"
 
+static SemaphoreHandle_t bmp_core_mutex = NULL;
 static int num_clients;
 
-char *gdb_packet_buffer(void)
+void bmp_core_lock(void)
+{
+	xSemaphoreTake(bmp_core_mutex, portMAX_DELAY);
+}
+
+void bmp_core_unlock(void)
+{
+	xSemaphoreGive(bmp_core_mutex);
+}
+
+IRAM_ATTR char *gdb_packet_buffer(void)
 {
 	void **ptr = (void **)pvTaskGetThreadLocalStoragePointer(NULL, GDB_TLS_INDEX);
 	assert(ptr);
@@ -49,19 +60,10 @@ static void gdb_wifi_destroy(struct bmp_wifi_instance *instance)
 	vTaskDelete(NULL);
 }
 
-#define MAYBE_SLEEP(last, current)                                                                  \
-	do {                                                                                            \
-		current = xTaskGetTickCount();                                                              \
-		if ((current - last) > pdMS_TO_TICKS(500)) {                                                \
-			/*ESP_LOGI("bmp", "delaying because last delay was %ld ticks ago", (current - last));*/ \
-			last = current;                                                                         \
-			vTaskDelay(2);                                                                          \
-		}                                                                                           \
-	} while (0)
-
-static void gdb_wifi_task(void *arg)
+static void IRAM_ATTR gdb_wifi_task(void *arg)
 {
 	struct bmp_wifi_instance *instance = (struct bmp_wifi_instance *)arg;
+	volatile struct exception e;
 
 	void *tls[2] = {};
 	tls[0] = arg;
@@ -85,10 +87,13 @@ static void gdb_wifi_task(void *arg)
 
 	char *pbuf = instance->rx_buf;
 
-	TickType_t last_sleep = xTaskGetTickCount();
-	TickType_t current_sleep = last_sleep;
+	TRY_CATCH (e, EXCEPTION_ALL) {
+		extern target_controller_s gdb_controller;
+		adiv5_swd_scan(0);
+		cur_target = target_attach_n(1, &gdb_controller);
+	}
+
 	while (true) {
-		volatile struct exception e;
 		TRY_CATCH (e, EXCEPTION_ALL) {
 			SET_IDLE_STATE(0);
 			while (gdb_target_running && cur_target) {
@@ -103,7 +108,6 @@ static void gdb_wifi_task(void *arg)
 				if (c == '\x03' || c == '\x04') {
 					target_halt_request(cur_target);
 				}
-				MAYBE_SLEEP(last_sleep, current_sleep);
 				if (rtt_enabled)
 					poll_rtt(cur_target);
 			}
@@ -115,7 +119,6 @@ static void gdb_wifi_task(void *arg)
 				SET_IDLE_STATE(0);
 			}
 			gdb_main(pbuf, sizeof(instance->rx_buf), size);
-			MAYBE_SLEEP(last_sleep, current_sleep);
 		}
 		if (e.type == EXCEPTION_NETWORK) {
 			ESP_LOGE("exception", "network exception -- exiting: %s", e.msg);
@@ -145,7 +148,7 @@ static void new_bmp_wifi_instance(int sock)
 	memset(instance, 0, sizeof(*instance));
 	instance->sock = sock;
 
-	xTaskCreate(gdb_wifi_task, name, 12000, (void *)instance, tskIDLE_PRIORITY + 1, &instance->pid);
+	xTaskCreate(gdb_wifi_task, name, 5000, (void *)instance, tskIDLE_PRIORITY + 1, &instance->pid);
 }
 
 void gdb_net_task(void *arg)
@@ -154,8 +157,10 @@ void gdb_net_task(void *arg)
 	int gdb_if_serv;
 	int opt;
 
+	bmp_core_mutex = xSemaphoreCreateMutex();
+
 	addr.sin_family = AF_INET;
-	addr.sin_port = htons(CONFIG_TCP_PORT);
+	addr.sin_port = htons(CONFIG_GDB_TCP_PORT);
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	assert((gdb_if_serv = socket(PF_INET, SOCK_STREAM, 0)) != -1);
@@ -166,7 +171,7 @@ void gdb_net_task(void *arg)
 	assert(bind(gdb_if_serv, (struct sockaddr *)&addr, sizeof(addr)) != -1);
 	assert(listen(gdb_if_serv, 1) != -1);
 
-	ESP_LOGI("gdb", "Listening on TCP:%d", CONFIG_TCP_PORT);
+	ESP_LOGI("gdb", "Listening on TCP:%d", CONFIG_GDB_TCP_PORT);
 
 	while (1) {
 		int s = accept(gdb_if_serv, NULL, NULL);

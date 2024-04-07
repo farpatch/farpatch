@@ -4,6 +4,3 @@
 [submodule "components/frogfs"]
 	path = components/frogfs
 	url = https://github.com/farpatch/frogfs.git
-[submodule "components/esp32-wifi-manager"]
-	path = components/esp32-wifi-manager
-	url = https://github.com/farpatch/esp32-wifi-manager.git

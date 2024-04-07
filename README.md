@@ -131,6 +131,10 @@ idf.py menuconfig
 idf.py build
 ```
 
+## User interface
+
+The user interface is located in the [html](html) directory. It comes from [farpatch/frontend](https://github.com/farpatch/frontend) and is copied directly from the `build/` directory of that project.
+
 ## Flashing using esptool.py
 
 To flash using `esptool.py`, you will first need to put the board into bootloader mode:

@@ -59,8 +59,8 @@
 #include "driver/uart.h"
 
 #include "uart.h"
-#include "wifi_manager.h"
 #include "wifi.h"
+#include "wilma/wilma.h"
 
 #include <lwip/sockets.h>
 
@@ -76,6 +76,7 @@ static const char *power_source_name = "unknown";
 #endif
 
 void initialise_mdns(const char *hostname);
+void rtt_init(void);
 
 int swdptap_set_frequency(uint32_t frequency)
 {
@@ -453,10 +454,10 @@ void app_main(void)
 	gpio_set_level(CONFIG_UART_TX_DIR_GPIO, 0);
 #endif
 
-#ifdef CONFIG_DEBUG_UART
+#ifdef CONFIG_ESP_DEBUG_LOGS
 	uart_dbg_install();
-#else /* !CONFIG_DEBUG_UART */
-	ESP_LOGI(TAG, "deactivating debug uart");
+#else /* !CONFIG_ESP_DEBUG_LOGS */
+	ESP_LOGI(TAG, "deactivating debug");
 	esp_log_set_vprintf(vprintf_noop);
 #endif
 
@@ -473,11 +474,8 @@ void app_main(void)
 	// manifests itself as a problem with NVS.
 	// xTaskCreate(adc_task, "adc", 1024, NULL, 10, NULL);
 
-	bm_update_wifi_ssid();
-	bm_update_wifi_ps();
-
-	ESP_LOGI(TAG, "starting wifi manager");
-	wifi_manager_start();
+	ESP_LOGI(TAG, "starting WiLma wifi manager");
+	wilma_start();
 	ESP_LOGI(TAG, "starting web server");
 
 	// There needs to be a small delay after the wifi manager starts in order to
@@ -492,6 +490,7 @@ void app_main(void)
 	platform_init();
 
 	uart_init();
+	rtt_init();
 
 	xTaskCreate(&gdb_net_task, "gdb_net", 2000, NULL, 1, NULL);
 
