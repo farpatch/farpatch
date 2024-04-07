@@ -2,7 +2,7 @@
 #include "mdns.h"
 #include "wifi.h"
 
-static const char *TAG = "gibraltar-mdns";
+static const char *TAG = "farpatch-mdns";
 
 void wilma_unique_words(const char **name1, const char **name2);
 
@@ -14,7 +14,7 @@ void initialise_mdns(const char *hostname)
 		const char *name1;
 		const char *name2;
         wilma_unique_words(&name1, &name2);
-        snprintf(generated_hostname, sizeof(generated_hostname) - 1, "gibraltar-%s-%s", name1, name2);
+        snprintf(generated_hostname, sizeof(generated_hostname) - 1, "farpatch-%s-%s", name1, name2);
 		ESP_ERROR_CHECK(mdns_hostname_set(generated_hostname));
 		ESP_LOGI(TAG, "mdns hostname set to: [%s]", generated_hostname);
 	} else {
@@ -23,14 +23,14 @@ void initialise_mdns(const char *hostname)
 		ESP_LOGI(TAG, "mdns hostname set to: [%s]", hostname);
 	}
 	//set default mDNS instance name
-	ESP_ERROR_CHECK(mdns_instance_name_set("Gibraltar Debugger"));
+	ESP_ERROR_CHECK(mdns_instance_name_set("Farpatch Debugger"));
 
 	//structure with TXT records
 	mdns_txt_item_t serviceTxtData[3] = {{"board", "esp32s3"}, {"u", "user"}, {"p", "password"}};
 
 	//initialize service
-	ESP_ERROR_CHECK(mdns_service_add("Gibraltar-WebServer", "_http", "_tcp", 80, serviceTxtData, 3));
-	ESP_ERROR_CHECK(mdns_service_subtype_add_for_host("Gibraltar-WebServer", "_http", "_tcp", NULL, "_server"));
+	ESP_ERROR_CHECK(mdns_service_add("Farpatch-WebServer", "_http", "_tcp", 80, serviceTxtData, 3));
+	ESP_ERROR_CHECK(mdns_service_subtype_add_for_host("Farpatch-WebServer", "_http", "_tcp", NULL, "_server"));
 #if CONFIG_MDNS_MULTIPLE_INSTANCE
 	ESP_ERROR_CHECK(mdns_service_add("ESP32-WebServer1", "_http", "_tcp", 80, NULL, 0));
 #endif
