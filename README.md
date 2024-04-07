@@ -180,7 +180,7 @@ called 'firmware.bin'.
 
 There is an experimental web interface available to flashing new updates.
 
-1. Go to `http://10.10.0.1/flash/`
+1. Go to `http://10.10.0.1/#settings`
 2. Select `blackmagic.bin` as the firmware file
 3. Click `Update!`
 
@@ -190,24 +190,21 @@ By default, Farpatch starts an access point that consists of its name, plus two 
 You can connect to this to access Farpatch. This access point will always be started when
 the current wifi configuration does not function.
 
-**The default password is `12345678`**. You can change this by running `make menuconfig` and
+**The default password is blank**. You can change this by running `make menuconfig` and
 selecting `Component Config -> Wifi Manager Configuration -> Access Point Password`.
 
 ## Configuring Wifi
 
 You can configure Farpatch to connect to your existing wifi network. To do that, connect
-to its access point and navitage to:
+to its access point and navigate to:
 
-<http://10.10.0.1/wifi.html>
+<http://10.10.0.1/#settings>
 
 This will scan your network, then ask you for a password to connect to the specified access point.
 When you connect, your PC will be redirected to the new address, though you may need to reconnect
 to your existing wifi network.
 
-Note that `/wifi.html` is always available, even when connected to an existing network. Currently,
-only one network can be stored at a time.
-
 ## Deconfiguring wifi
 
 To deconfigure wifi, hold the `PRG` button for 5 seconds. This will clear the wifi configuration
-data and start up an access point.
+data and start up an access point. Alternately, go to the Settings page and click `Forget`.

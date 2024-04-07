@@ -20,11 +20,6 @@ jobs:
         submodules: recursive
         path: farpatch
 
-    - name: Install node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: 16
-
     - name: Install Python
       uses: actions/setup-python@v4
       with:
