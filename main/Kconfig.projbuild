@@ -137,7 +137,7 @@ menu "Farpatch Configuration"
 
     config DEFAULT_AP_SSID_PREFIX
         string "Access Point SSID Prefix"
-        default "Gibraltar"
+        default "Farpatch"
         help
         SSID (network name) that the device will broadcast.
 

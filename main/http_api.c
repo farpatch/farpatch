@@ -241,7 +241,7 @@ static void append_networking_to_output(httpd_req_t *req)
     const char *name1;
     const char *name2;
     wilma_unique_words(&name1, &name2);
-    snprintf(generated_hostname, sizeof(generated_hostname) - 1, "gibraltar-%s-%s.local", name1, name2);
+    snprintf(generated_hostname, sizeof(generated_hostname) - 1, "farpatch-%s-%s.local", name1, name2);
     snprintf(buffer, sizeof(buffer) - 1,
              ",\"networking\": {"
              "\"hostname\": \"%s\","
