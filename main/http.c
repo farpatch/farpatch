@@ -526,6 +526,11 @@ static const httpd_uri_t basic_handlers[] = {
 		.method = HTTP_GET,
 		.handler = cgi_flash_reboot,
 	},
+	{
+		.uri = "/fp/storage",
+		.method = HTTP_DELETE,
+		.handler = cgi_storage_delete,
+	},
 
 	// UART configuration
 	{

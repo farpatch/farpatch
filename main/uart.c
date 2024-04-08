@@ -21,8 +21,6 @@
 #include "tinyprintf.h"
 #include "uart.h"
 
-#define UHCI_INDEX 0
-
 static struct sockaddr_in udp_peer_addr;
 static int tcp_serv_sock;
 static int udp_serv_sock;
@@ -104,7 +102,7 @@ void uart_dbg_install(void)
 	xTaskCreate(&dbg_log_task, "dbg_log_main", 2048, NULL, 4, NULL);
 }
 
-static void net_uart_task(void *params)
+static void uart_net_task(void *params)
 {
 	tcp_serv_sock = socket(AF_INET, SOCK_STREAM, 0);
 	udp_serv_sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -220,15 +218,13 @@ static void uart_config(void)
 	uart_set_baudrate(TARGET_UART_IDX, baud);
 }
 
-static void IRAM_ATTR uart_rx_task(void *parameters)
+static void IRAM_ATTR uart_hw_task(void *parameters)
 {
 	(void)parameters;
 	uint8_t buf[1024];
 	int ret;
 	int count = 0;
 
-	// Install the driver while running on Core 1 in order to ensure the UART DMA interrupt
-	// runs on Core 1.
 	uart_config();
 
 	while (1) {
@@ -292,7 +288,7 @@ void uart_init(void)
 	ESP_LOGI(__func__, "configuring UART%d for target", TARGET_UART_IDX);
 
 	// Start UART tasks
-	xTaskCreate(uart_rx_task, "uart_rx_task", 4096, NULL, 1, NULL);
-	xTaskCreate(net_uart_task, "net_uart_task", 6 * 1024, NULL, 1, NULL);
+	xTaskCreate(uart_hw_task, "uart_hw_task", 2048, NULL, 1, NULL);
+	xTaskCreate(uart_net_task, "uart_net_task", 6 * 1024, NULL, 1, NULL);
 #endif
 }

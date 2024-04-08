@@ -32,7 +32,8 @@ esp_err_t cgi_sta_start_scan_json(httpd_req_t *req)
 	return ESP_OK;
 }
 
-static void cgi_ap_json_cb(const uint8_t ssid[32], uint8_t channel, int8_t rssi, uint8_t auth_mode, uint32_t index, uint32_t max, void *arg)
+static void cgi_ap_json_cb(
+	const uint8_t ssid[32], uint8_t channel, int8_t rssi, uint8_t auth_mode, uint32_t index, uint32_t max, void *arg)
 {
 	char line_buffer[110];
 	httpd_req_t *req = (httpd_req_t *)arg;
@@ -47,7 +48,8 @@ static void cgi_ap_json_cb(const uint8_t ssid[32], uint8_t channel, int8_t rssi,
 	wilma_json_print_string(null_terminated_ssid, (unsigned char *)line_buffer);
 	httpd_resp_sendstr_chunk(req, line_buffer);
 
-	snprintf(line_buffer, sizeof(line_buffer), ",\"channel\":%d,\"rssi\":%d,\"auth_mode\":%d}%c", channel, rssi, auth_mode, is_last ? '\0' : ',');
+	snprintf(line_buffer, sizeof(line_buffer), ",\"channel\":%d,\"rssi\":%d,\"auth_mode\":%d}%c", channel, rssi,
+		auth_mode, is_last ? '\0' : ',');
 	httpd_resp_sendstr_chunk(req, line_buffer);
 }
 
@@ -66,21 +68,15 @@ esp_err_t cgi_ap_config_json(httpd_req_t *req)
 	httpd_resp_sendstr_chunk(req, "{\"ssid\":");
 	httpd_resp_sendstr_chunk(req, escaped_ssid);
 	httpd_resp_sendstr_chunk(req, ",\"enabled\":");
-	if (enabled)
-	{
+	if (enabled) {
 		httpd_resp_sendstr_chunk(req, "true");
-	}
-	else
-	{
+	} else {
 		httpd_resp_sendstr_chunk(req, "false");
 	}
 	httpd_resp_sendstr_chunk(req, ",\"password\":");
-	if (has_password)
-	{
+	if (has_password) {
 		httpd_resp_sendstr_chunk(req, "true");
-	}
-	else
-	{
+	} else {
 		httpd_resp_sendstr_chunk(req, "false");
 	}
 	httpd_resp_sendstr_chunk(req, "}");
@@ -112,8 +108,7 @@ static esp_err_t cgi_connect_json_add(httpd_req_t *req)
 
 	ESP_LOGI(__func__, "http_server_netconn_serve: POST /connect.json");
 	if ((ESP_OK != httpd_req_get_hdr_value_str(req, "X-Custom-ssid", ssid, sizeof(ssid))) ||
-		(ESP_OK != httpd_req_get_hdr_value_str(req, "X-Custom-pwd", password, sizeof(password))))
-	{
+		(ESP_OK != httpd_req_get_hdr_value_str(req, "X-Custom-pwd", password, sizeof(password)))) {
 		const char *error = "{\"error\": \"missing ssid or password\"}";
 		ESP_LOGE(__func__, "http_server_netconn_serve: missing SSID or password");
 
@@ -136,8 +131,7 @@ static esp_err_t cgi_connect_json_add(httpd_req_t *req)
 static esp_err_t cgi_connect_json_remove(httpd_req_t *req)
 {
 	char ssid[33] = {};
-	if (ESP_OK != httpd_req_get_hdr_value_str(req, "X-Custom-ssid", ssid, sizeof(ssid)))
-	{
+	if (ESP_OK != httpd_req_get_hdr_value_str(req, "X-Custom-ssid", ssid, sizeof(ssid))) {
 		const char *error = "{\"error\": \"missing ssid\"}";
 		ESP_LOGE(__func__, "http_server_netconn_serve: missing SSID");
 
@@ -162,10 +156,8 @@ esp_err_t cgi_ap_configure(httpd_req_t *req)
 	bool enabled = true;
 
 	ESP_LOGI(__func__, "http_server_netconn_serve: POST /ap.json");
-	if (ESP_OK != httpd_req_get_hdr_value_str(req, "X-Custom-ssid", ssid, sizeof(ssid)))
-	{
-		if (!httpd_req_get_hdr_value_len(req, "X-Custom-disable"))
-		{
+	if (ESP_OK != httpd_req_get_hdr_value_str(req, "X-Custom-ssid", ssid, sizeof(ssid))) {
+		if (!httpd_req_get_hdr_value_len(req, "X-Custom-disable")) {
 			const char *error = "{\"error\": \"missing x-custom-ssid or x-custom-disable header\"}";
 			ESP_LOGE(__func__, "http_server_netconn_serve: missing X-Custom-ssid or X-Custom-disable");
 
@@ -198,8 +190,7 @@ esp_err_t cgi_ap_configure(httpd_req_t *req)
 esp_err_t cgi_sta_connect_json(httpd_req_t *req)
 {
 	ESP_LOGI(__func__, "http_server_netconn_serve: %s /connect.json", http_method_str(req->method));
-	switch (req->method)
-	{
+	switch (req->method) {
 	case HTTP_POST:
 		return cgi_connect_json_add(req);
 	case HTTP_DELETE:
@@ -209,7 +200,8 @@ esp_err_t cgi_sta_connect_json(httpd_req_t *req)
 	}
 }
 
-static void cgi_status_json_ssid_cb(const uint8_t ssid[32], wilma_sta_state_t state, uint32_t index, uint32_t max, void *arg)
+static void cgi_status_json_ssid_cb(
+	const uint8_t ssid[32], wilma_sta_state_t state, uint32_t index, uint32_t max, void *arg)
 {
 	char line_buffer[110];
 

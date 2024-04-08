@@ -15,6 +15,9 @@
 
 #include "wilma.h"
 
+// #undef ESP_LOGD
+// #define ESP_LOGD(...) ESP_LOGI(__VA_ARGS__)
+
 void wilma_utils_init(void);
 void wilma_utils_cleanup(void);
 bool wilma_lock_json_buffer(TickType_t xTicksToWait);
@@ -190,8 +193,8 @@ static void log_connection(const uint8_t ssid[32], const uint8_t password[64])
 	// {
 	// 	sprintf(buffer + (i * 3), " %02x", password[i]);
 	// }
-	// ESP_LOGI(TAG, "Connecting to station SSID: %s  Password: %s", (const char *)ssid, (const char *)password);
-	ESP_LOGI(TAG, "Connecting to station SSID: %s", (const char *)ssid);
+	// ESP_LOGD(TAG, "Connecting to station SSID: %s  Password: %s", (const char *)ssid, (const char *)password);
+	ESP_LOGD(TAG, "Connecting to station SSID: %s", (const char *)ssid);
 }
 
 static BaseType_t send_message(WilmaMessageType code, void *param)
@@ -236,9 +239,20 @@ static void start_scan(void)
 	}
 }
 
+static int get_saved_station_count(void) {
+	esp_err_t err;
+	unsigned int required_size;
+	err = nvs_get_blob(WILMA_NVS_HANDLE, STA_KEY, NULL, &required_size);
+	if (err != ESP_OK) {
+		ESP_LOGD(TAG, "Unable to get station count: %s", esp_err_to_name(err));
+		return 0;
+	}
+	return required_size / sizeof(WilmaNvsStationEntry);
+}
+
 WilmaNvsStationEntry *get_saved_stations(size_t *count)
 {
-	size_t required_size;
+	size_t required_size = 0;
 	esp_err_t err;
 
 	*count = 0;
@@ -294,9 +308,9 @@ static esp_err_t update_ssid_state(const uint8_t ssid[32], wilma_sta_state_t new
 	for (idx = 0; idx < station_count; idx += 1) {
 		if (!memcmp(sta_entries[idx].ssid, ssid, sizeof(sta_entries[idx].ssid))) {
 			if (sta_entries[idx].state == new_state) {
-				ESP_LOGI(TAG, "SSID state for index %d is already %d", idx, new_state);
+				ESP_LOGD(TAG, "SSID state for index %d is already %d", idx, new_state);
 			} else {
-				ESP_LOGI(TAG, "Updating existing entry: %s -> %d", sta_entries[idx].ssid, new_state);
+				ESP_LOGD(TAG, "Updating existing entry: %s -> %d", sta_entries[idx].ssid, new_state);
 				sta_entries[idx].state = new_state;
 				update_saved_stations(sta_entries, station_count);
 			}
@@ -324,7 +338,7 @@ int wilma_add_ssid(const char *ssid, const char *password)
 			.ssid = {0},
 			.password = {0},
 		};
-		ESP_LOGI(TAG, "No wifi store found. Creating new entry for SSID %s", ssid);
+		ESP_LOGE(TAG, "No wifi store found. Creating new entry for SSID %s", ssid);
 		memcpy(new_entry.ssid, ssid, MIN(strlen(ssid), sizeof(new_entry.ssid)));
 		memcpy(new_entry.password, password, MIN(strlen(password), sizeof(new_entry.ssid)));
 		log_connection(new_entry.ssid, new_entry.password);
@@ -341,7 +355,7 @@ int wilma_add_ssid(const char *ssid, const char *password)
 	// See if the entry exists. If so, update it. If not, create a new one.
 	for (int i = 0; i < station_count; i++) {
 		if (strncmp((char *)sta_entries[i].ssid, ssid, sizeof(sta_entries[i].ssid)) == 0) {
-			ESP_LOGI(TAG, "Updating password for existing entry %s", ssid);
+			ESP_LOGD(TAG, "Updating password for existing entry %s", ssid);
 			memset(sta_entries[i].password, 0, sizeof(sta_entries[i].password));
 			memcpy(sta_entries[i].password, password, MIN(strlen(password), sizeof(sta_entries[i].password)));
 			log_connection(sta_entries[i].ssid, sta_entries[i].password);
@@ -360,7 +374,7 @@ int wilma_add_ssid(const char *ssid, const char *password)
 	}
 
 	// Create a new entry
-	ESP_LOGI(TAG, "Adding configuration for new SSID %s", ssid);
+	ESP_LOGD(TAG, "Adding configuration for new SSID %s", ssid);
 	sta_entries = realloc(sta_entries, sizeof(*sta_entries) * (station_count + 1));
 	if (sta_entries == NULL) {
 		ESP_LOGE(TAG, "realloc failed");
@@ -432,7 +446,7 @@ int wilma_remove_ssid(const char *ssid)
 		}
 
 		if (i != (station_count - 1)) {
-			ESP_LOGI(TAG, "Removing existing entry: %s", ssid);
+			ESP_LOGD(TAG, "Removing existing entry: %s", ssid);
 			memcpy(&sta_entries[i], &sta_entries[station_count - 1], sizeof(WilmaNvsStationEntry));
 		}
 		update_saved_stations(sta_entries, station_count - 1);
@@ -550,7 +564,7 @@ esp_err_t wilma_foreach_configured_ssid(
 
 	WilmaNvsStationEntry *sta_entries = get_saved_stations(&station_count);
 	if (!sta_entries) {
-		ESP_LOGI(TAG, "No configured stations found");
+		ESP_LOGD(TAG, "No configured stations found");
 		return ESP_OK;
 	}
 
@@ -630,7 +644,7 @@ static esp_err_t update_ssid_list(void)
 	size_t saved_station_count;
 	WilmaNvsStationEntry *sta_entries = get_saved_stations(&saved_station_count);
 
-	ESP_LOGI(TAG, "\tS.N. %-32s %-12s %s %s %s", "SSID", "BSSID", "RSSI", "AUTH", "CHAN");
+	ESP_LOGD(TAG, "\tS.N. %-32s %-12s %s %s %s", "SSID", "BSSID", "RSSI", "AUTH", "CHAN");
 	WILMA_CONNECTION_LIST_COUNT = 0;
 	int j;
 	for (idx = 0; idx < WILMA_VISIBLE_APS_COUNT; idx++) {
@@ -651,7 +665,7 @@ static esp_err_t update_ssid_list(void)
 					WILMA_CONNECTION_LIST[WILMA_CONNECTION_LIST_COUNT].auth_mode = records[idx].authmode;
 					WILMA_CONNECTION_LIST_COUNT += 1;
 					if (WILMA_CONNECTION_LIST_COUNT >= WILMA_MAX_CANDIDATE_STATIONS) {
-						ESP_LOGI(
+						ESP_LOGD(
 							TAG, "Reached maximum number of candidate stations (%d)", WILMA_MAX_CANDIDATE_STATIONS);
 						break;
 					}
@@ -660,7 +674,7 @@ static esp_err_t update_ssid_list(void)
 			}
 		}
 
-		ESP_LOGI(TAG, "\t[%2d] %-32s %02x%02x%02x%02x%02x%02x %4d %4d %4d", idx, records[idx].ssid,
+		ESP_LOGD(TAG, "\t[%2d] %-32s %02x%02x%02x%02x%02x%02x %4d %4d %4d", idx, records[idx].ssid,
 			records[idx].bssid[0], records[idx].bssid[1], records[idx].bssid[2], records[idx].bssid[3],
 			records[idx].bssid[4], records[idx].bssid[5], records[idx].rssi, records[idx].authmode,
 			records[idx].primary);
@@ -681,21 +695,21 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
 	if (event_base == WIFI_EVENT) {
 		switch (event_id) {
 		case WIFI_EVENT_STA_START:
-			ESP_LOGI(TAG, "WIFI_EVENT_STA_START (doing nothing)");
+			ESP_LOGD(TAG, "WIFI_EVENT_STA_START (doing nothing)");
 			// ESP_ERROR_CHECK(esp_wifi_connect());
 			break;
 
 		case WIFI_EVENT_AP_START:
-			ESP_LOGI(TAG, "WIFI_EVENT_AP_START");
+			ESP_LOGD(TAG, "WIFI_EVENT_AP_START");
 			break;
 
 		case WIFI_EVENT_AP_STOP:
-			ESP_LOGI(TAG, "WIFI_EVENT_AP_STOP");
+			ESP_LOGD(TAG, "WIFI_EVENT_AP_STOP");
 			break;
 
 		case WIFI_EVENT_STA_CONNECTED: {
 			wifi_event_sta_connected_t *event = (wifi_event_sta_connected_t *)event_data;
-			ESP_LOGI(TAG, "WIFI_EVENT_STA_CONNECTED");
+			ESP_LOGD(TAG, "WIFI_EVENT_STA_CONNECTED");
 			memcpy(WILMA_STATION_SSID, event->ssid, sizeof(WILMA_STATION_SSID));
 			if (xEventGroupGetBits(WILMA_EVENT_GROUP) & WILMA_RETRY_CONNECTION_BIT) {
 				xEventGroupClearBits(WILMA_EVENT_GROUP, WILMA_RETRY_CONNECTION_BIT);
@@ -705,7 +719,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
 		}
 
 		case WIFI_EVENT_STA_DISCONNECTED: {
-			ESP_LOGI(TAG, "WIFI_EVENT_STA_DISCONNECTED");
+			ESP_LOGD(TAG, "WIFI_EVENT_STA_DISCONNECTED");
 			wifi_event_sta_disconnected_t *event = (wifi_event_sta_disconnected_t *)event_data;
 			ESP_LOGI(TAG, "Disconnected from AP %s. RSSI: %d, reason: %d (%s)", event->ssid, event->rssi, event->reason,
 				wilma_reason_to_str(event->reason));
@@ -713,7 +727,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
 				xEventGroupClearBits(WILMA_EVENT_GROUP, WILMA_RETRY_CONNECTION_BIT);
 				ESP_ERROR_CHECK(esp_wifi_connect());
 			} else if (xEventGroupGetBits(WILMA_EVENT_GROUP) & WILMA_DISCONNECTED_BIT) {
-				ESP_LOGI(TAG, "WIFI_EVENT_STA_DISCONNECTED: ignoring because we were told to disconnect");
+				ESP_LOGD(TAG, "WIFI_EVENT_STA_DISCONNECTED: ignoring because we were told to disconnect");
 				xEventGroupClearBits(WILMA_EVENT_GROUP, WILMA_DISCONNECTED_BIT);
 
 				if (ESP_OK != connect_to_station_index(0)) {
@@ -726,11 +740,11 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
 				break;
 			} else if (xEventGroupGetBits(WILMA_EVENT_GROUP) & WILMA_SCAN_BIT) {
 				// Don't retry to connect to the AP if we're in the middle of a scan
-				ESP_LOGI(TAG, "WIFI_EVENT_STA_DISCONNECTED: ignoring because we're scanning");
+				ESP_LOGD(TAG, "WIFI_EVENT_STA_DISCONNECTED: ignoring because we're scanning");
 				break;
 			} else if (WILMA_RETRY_NUM < RETRIES_BEFORE_CONTINUING) {
 				WILMA_RETRY_NUM++;
-				ESP_LOGI(TAG, "Trying again to connect to AP (try %d/%d)", WILMA_RETRY_NUM, RETRIES_BEFORE_CONTINUING);
+				ESP_LOGD(TAG, "Trying again to connect to AP (try %d/%d)", WILMA_RETRY_NUM, RETRIES_BEFORE_CONTINUING);
 
 				esp_err_t err = esp_wifi_connect();
 				switch (err) {
@@ -738,7 +752,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
 					break;
 				case ESP_ERR_WIFI_NOT_STARTED:
 					if (event->reason == WIFI_REASON_ASSOC_LEAVE) {
-						ESP_LOGI(TAG, "wifi not started, we're probably rebooting");
+						ESP_LOGD(TAG, "wifi not started, we're probably rebooting");
 						break;
 					}
 					/* Fall through */
@@ -755,14 +769,14 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
 				}
 
 				if (WILMA_CONNECTION_INDEX < WILMA_CONNECTION_LIST_COUNT - 1) {
-					ESP_LOGI(TAG, "Failed  to connect. Moving on to next AP...");
+					ESP_LOGD(TAG, "Failed  to connect. Moving on to next AP...");
 					if (ESP_OK != connect_to_station_index(WILMA_CONNECTION_INDEX + 1)) {
 						xEventGroupSetBits(WILMA_EVENT_GROUP, WILMA_CONNECTING_BIT);
 						ESP_ERROR_CHECK(esp_wifi_connect());
 						WILMA_RETRY_NUM = 0;
 					}
 				} else {
-					ESP_LOGI(TAG, "No more APs to try -- starting AP mode");
+					ESP_LOGD(TAG, "No more APs to try -- starting AP mode");
 					clear_sta_config();
 
 					// Start the AP in case we're in a new place with no known APs
@@ -780,11 +794,11 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
 			break;
 
 		case WIFI_EVENT_AP_STADISCONNECTED:
-			ESP_LOGI(TAG, "WIFI_EVENT_AP_STADISCONNECTED");
+			ESP_LOGD(TAG, "WIFI_EVENT_AP_STADISCONNECTED");
 			break;
 
 		case WIFI_EVENT_SCAN_DONE:
-			ESP_LOGI(TAG, "WIFI_EVENT_SCAN_DONE");
+			ESP_LOGD(TAG, "WIFI_EVENT_SCAN_DONE");
 			xEventGroupClearBits(WILMA_EVENT_GROUP, WILMA_SCAN_BIT);
 			update_ssid_list();
 
@@ -804,9 +818,9 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
 	} else if (event_base == IP_EVENT) {
 		switch (event_id) {
 		case IP_EVENT_STA_GOT_IP: {
-			ESP_LOGI(TAG, "IP_EVENT_STA_GOT_IP");
+			ESP_LOGD(TAG, "IP_EVENT_STA_GOT_IP");
 			ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
-			ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+			ESP_LOGD(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
 			WILMA_RETRY_NUM = 0;
 
 			// Stop a queued SSID scan
@@ -827,7 +841,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
 
 		case IP_EVENT_AP_STAIPASSIGNED: {
 			ip_event_ap_staipassigned_t *event = (ip_event_ap_staipassigned_t *)event_data;
-			ESP_LOGI(TAG, "station attached to AP with ip:" IPSTR, IP2STR(&event->ip));
+			ESP_LOGD(TAG, "station attached to AP with ip:" IPSTR, IP2STR(&event->ip));
 			break;
 		}
 
@@ -847,7 +861,7 @@ static bool cfg_ap_enabled(void)
 	err = nvs_get_u8(WILMA_NVS_HANDLE, AP_ENABLED_KEY, &ap_enabled);
 	if (err != ESP_OK) {
 		// Default to having the AP enabled, in case there is no config
-		ESP_LOGI(TAG, "Unable to get whether AP was enabled -- assuming \"yes\": %s", esp_err_to_name(err));
+		ESP_LOGD(TAG, "Unable to get whether AP was enabled -- assuming \"yes\": %s", esp_err_to_name(err));
 		return true;
 	}
 	return ap_enabled != 0;
@@ -860,7 +874,7 @@ void wilma_set_ap_enabled(bool enabled)
 	if (err != ESP_OK) {
 		ESP_LOGE(TAG, "nvs_set_u8(%s) failed: %s", AP_ENABLED_KEY, esp_err_to_name(err));
 	}
-	ESP_LOGI(TAG, "AP mode is now %s", enabled ? "enabled" : "disabled");
+	ESP_LOGD(TAG, "AP mode is now %s", enabled ? "enabled" : "disabled");
 	ESP_ERROR_CHECK(nvs_commit(WILMA_NVS_HANDLE));
 
 	// Re-call init, which will enable or disable the AP as necessary.
@@ -956,7 +970,7 @@ static void cfg_ap_fill_password(wifi_config_t *ap_config)
 	memset(ap_config->ap.password, 0, sizeof(ap_config->ap.password));
 	err = nvs_get_str(WILMA_NVS_HANDLE, AP_PASSWORD_KEY, NULL, &password_length);
 	if (err != ESP_OK) {
-		ESP_LOGE(TAG, "Unable to get AP password: %s -- using default", esp_err_to_name(err));
+		ESP_LOGD(TAG, "Unable to get AP password: %s -- using default", esp_err_to_name(err));
 		memcpy(ap_config->ap.password, CONFIG_DEFAULT_AP_PASSWORD, strlen(CONFIG_DEFAULT_AP_PASSWORD));
 		return;
 	}
@@ -1010,7 +1024,7 @@ bool wilma_ap_ssid(char ssid[33])
 static esp_err_t connect_to_station_index(size_t index)
 {
 	if (!WILMA_CONNECTION_LIST_COUNT) {
-		ESP_LOGE(TAG, "No stations in connection list, starting AP mode");
+		ESP_LOGD(TAG, "No stations in connection list, starting AP mode");
 		wifi_configure_softap(true);
 		return ESP_FAIL;
 	}
@@ -1039,10 +1053,15 @@ static esp_err_t connect_to_station_index(size_t index)
 
 static void retry_timer_cb(TimerHandle_t xTimer)
 {
-	ESP_LOGI(TAG, "Retry Timer Tick! Sending WM_ORDER_CONNECT_STA to start connection process over again");
-
 	/* stop the timer */
 	xTimerStop(xTimer, (TickType_t)0);
+
+	if (get_saved_station_count() <= 0) {
+		ESP_LOGD(TAG, "No configured stations -- not performing scan + connect");
+		return;
+	}
+
+	ESP_LOGD(TAG, "Retry Timer Tick! Sending WM_ORDER_CONNECT_STA to start connection process over again");
 
 	/* Re-scan and kick off a connect afterwards */
 	wilma_scan_then_connect();
@@ -1061,12 +1080,12 @@ static void wifi_configure_softap(bool force_on)
 	// we're not configured to start an AP, or we weren't forced to.
 	if (!force_on && !cfg_ap_enabled() &&
 		(xEventGroupGetBits(WILMA_EVENT_GROUP) & (WILMA_CONNECTING_BIT | WILMA_CONNECTED_BIT))) {
-		ESP_LOGI(TAG, "AP mode is disabled and known APs were discovered");
+		ESP_LOGD(TAG, "AP mode is disabled and known APs were discovered");
 		if (xEventGroupGetBits(WILMA_EVENT_GROUP) & WILMA_CONNECTING_BIT) {
-			ESP_LOGI(TAG, "WILMA_CONNECTING_BIT is set");
+			ESP_LOGD(TAG, "WILMA_CONNECTING_BIT is set");
 		}
 		if (xEventGroupGetBits(WILMA_EVENT_GROUP) & WILMA_CONNECTED_BIT) {
-			ESP_LOGI(TAG, "WILMA_CONNECTED_BIT is set");
+			ESP_LOGD(TAG, "WILMA_CONNECTED_BIT is set");
 		}
 		esp_wifi_set_mode(WIFI_MODE_STA);
 		return;
@@ -1106,7 +1125,7 @@ static void wifi_configure_softap(bool force_on)
 
 	ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_ap_config));
 
-	ESP_LOGI(TAG, "wifi_init_softap finished. SSID:%s password:%s channel:%d", wifi_ap_config.ap.ssid,
+	ESP_LOGD(TAG, "wifi_init_softap finished. SSID:%s password:%s channel:%d", wifi_ap_config.ap.ssid,
 		wifi_ap_config.ap.password[0] ? (char *)wifi_ap_config.ap.password : "[Open]", wifi_ap_config.ap.channel);
 }
 
@@ -1115,7 +1134,7 @@ static esp_netif_t *wifi_init_sta(void)
 {
 	esp_netif_t *esp_netif_sta = esp_netif_create_default_wifi_sta();
 
-	ESP_LOGI(TAG, "wifi_init_sta finished.");
+	ESP_LOGD(TAG, "wifi_init_sta finished.");
 
 	return esp_netif_sta;
 }
@@ -1140,11 +1159,11 @@ static void wilma_thread(void *data)
 	ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
 	/* Initialize AP */
-	ESP_LOGI(TAG, "initializing softap");
+	ESP_LOGD(TAG, "initializing softap");
 	wifi_configure_softap(false);
 
 	/* Initialize STA */
-	ESP_LOGI(TAG, "initializing station mode");
+	ESP_LOGD(TAG, "initializing station mode");
 	ESP_NETIF_STA = wifi_init_sta();
 
 	ESP_ERROR_CHECK(esp_wifi_start());
@@ -1167,14 +1186,14 @@ static void wilma_thread(void *data)
 			xEventGroupSetBits(WILMA_EVENT_GROUP, WILMA_CONNECT_AFTER_SCAN_BIT);
 			/* Fall through */
 		case WM_ORDER_START_WIFI_SCAN:
-			ESP_LOGI(TAG, "Starting wifi scan");
+			ESP_LOGD(TAG, "Starting wifi scan");
 			start_scan();
 			break;
 
 		case WM_ORDER_FORGET_CONFIG:
-			ESP_LOGI(TAG, "Forgetting wifi configuration and restoring defaults");
+			ESP_LOGD(TAG, "Forgetting wifi configuration and restoring defaults");
 			nvs_erase_all(WILMA_NVS_HANDLE);
-			nvs_commit(WILMA_NVS_HANDLE);
+			(void)nvs_commit(WILMA_NVS_HANDLE);
 			clear_sta_config();
 			wifi_configure_softap(true);
 			break;
@@ -1182,7 +1201,7 @@ static void wilma_thread(void *data)
 		case WM_ORDER_CONNECT_STA: {
 			WilmaConnectStaParam *param = (WilmaConnectStaParam *)msg.param;
 			if (param == NULL) {
-				ESP_LOGI(TAG, "Starting connection by consulting the list of discovered APs");
+				ESP_LOGD(TAG, "Starting connection by consulting the list of discovered APs");
 				WILMA_RETRY_NUM = 0;
 				if (ESP_OK != connect_to_station_index(0)) {
 					// If there are no known APs, re-scan and try again
@@ -1191,7 +1210,7 @@ static void wilma_thread(void *data)
 				}
 			} else {
 				WILMA_RETRY_NUM = 0;
-				ESP_LOGI(TAG, "Connecting to SSID %s", param->ssid);
+				ESP_LOGD(TAG, "Connecting to SSID %s", param->ssid);
 				wifi_config_t wifi_sta_config = {.sta = {
 													 .scan_method = WIFI_FAST_SCAN,
 													 .threshold.authmode = ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD,
@@ -1220,7 +1239,7 @@ static void wilma_thread(void *data)
 		}
 
 		case WM_ORDER_SHUTDOWN:
-			ESP_LOGI(TAG, "Shutting down");
+			ESP_LOGD(TAG, "Shutting down");
 			esp_wifi_stop();
 			esp_wifi_deinit();
 			esp_netif_destroy(ESP_NETIF_AP);
@@ -1245,7 +1264,8 @@ static void wilma_thread(void *data)
 void wilma_start(void)
 {
 	/* disable the default wifi logging */
-	// esp_log_level_set(TAG, ESP_LOG_NONE);
+	esp_log_level_set("wifi", ESP_LOG_ERROR);
+	// esp_log_level_set(TAG, ESP_LOG_DEBUG);
 
 	ESP_ERROR_CHECK(nvs_open(NVS_NAMESPACE, NVS_READWRITE, &WILMA_NVS_HANDLE));
 
