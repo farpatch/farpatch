@@ -124,11 +124,12 @@ void platform_init(void)
 #endif
 
 	// Reset Button
+#if defined(CONFIG_RESET_BUTTON_GPIO) && CONFIG_RESET_BUTTON_GPIO >= 0
 	{
 		void handle_wifi_reset(void *parameter);
 		void setup_wifi_reset(void);
 		const gpio_config_t gpio_conf = {
-			.pin_bit_mask = BIT64(GPIO_NUM_0),
+			.pin_bit_mask = BIT64(CONFIG_RESET_BUTTON_GPIO),
 			.mode = GPIO_MODE_INPUT,
 			.pull_up_en = GPIO_PULLUP_ENABLE,
 			.pull_down_en = 0,
@@ -137,9 +138,10 @@ void platform_init(void)
 		setup_wifi_reset();
 		gpio_config(&gpio_conf);
 		gpio_install_isr_service(0);
-		gpio_intr_enable(GPIO_NUM_0);
-		gpio_isr_handler_add(GPIO_NUM_0, handle_wifi_reset, NULL);
+		gpio_intr_enable(CONFIG_RESET_BUTTON_GPIO);
+		gpio_isr_handler_add(CONFIG_RESET_BUTTON_GPIO, handle_wifi_reset, NULL);
 	}
+#endif
 
 	// TDO / SWO
 	{
@@ -448,7 +450,12 @@ void app_main(void)
 	gpio_set_direction(CONFIG_LED2_GPIO, GPIO_MODE_OUTPUT);
 	gpio_set_level(CONFIG_LED2_GPIO, 1);
 #endif
-#if defined(CONFIG_UUART_TX_DIR_GPIO) && CONFIG_UART_TX_DIR_GPIO >= 0
+#if defined(CONFIG_UUART_TX_DIR_GPIO) && CONFIG_UUART_TX_DIR_GPIO >= 0
+	gpio_reset_pin(CONFIG_UUART_TX_DIR_GPIO);
+	gpio_set_direction(CONFIG_UUART_TX_DIR_GPIO, GPIO_MODE_OUTPUT);
+	gpio_set_level(CONFIG_UUART_TX_DIR_GPIO, 0);
+#endif
+#if defined(CONFIG_UART_TX_DIR_GPIO) && CONFIG_UART_TX_DIR_GPIO >= 0
 	gpio_reset_pin(CONFIG_UART_TX_DIR_GPIO);
 	gpio_set_direction(CONFIG_UART_TX_DIR_GPIO, GPIO_MODE_OUTPUT);
 	gpio_set_level(CONFIG_UART_TX_DIR_GPIO, 0);
