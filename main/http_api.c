@@ -10,6 +10,7 @@
 #include "nvs_flash.h"
 #include <string.h>
 #include <stdio.h>
+#include "target_internal.h"
 #include "version.h"
 #include "wilma/wilma.h"
 
@@ -259,8 +260,8 @@ static void append_target_to_output(size_t idx, target_s *target, void *context)
 		return;
 	}
 
-	const char *const attached = target_attached(target) ? "true" : "false";
-	const char *const core_name = target_core_name(target);
+	const char *const attached = target->attached ? "true" : "false";
+	const char *const core_name = target->core;
 	// Append a comma if this isn't the first target
 	if (ctx->first) {
 		ctx->first = 0;
@@ -275,14 +276,14 @@ static void append_target_to_output(size_t idx, target_s *target, void *context)
 	}
 
 	int len;
-	ESP_LOGI(TAG, "Driver name: %s", target_driver_name(target));
-	if (!strcmp(target_driver_name(target), "ARM Cortex-M")) {
+	ESP_LOGI(TAG, "Driver name: %s", target->driver);
+	if (!strcmp(target->driver, "ARM Cortex-M")) {
 		len = snprintf(ctx->buffer, ctx->buffer_size - 1,
 			"{\"attached\":%s,\"driver\":\"%s\",\"designer\":%d,\"part_id\":%d,\"core_name\":\"%s\"}", attached,
-			target_driver_name(target), target_designer(target), target_part_id(target), core_name ? core_name : "");
+			target->driver, target->designer_code, target->part_id, core_name ? core_name : "");
 	} else {
 		len = snprintf(ctx->buffer, ctx->buffer_size - 1, "{\"attached\":%s,\"driver\":\"%s\",\"core_name\":\"%s\"}",
-			attached, target_driver_name(target), core_name ? core_name : "");
+			attached, target->driver, core_name ? core_name : "");
 	}
 	ctx->buffer += len;
 	ctx->buffer_size -= len;
