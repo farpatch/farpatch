@@ -26,6 +26,9 @@
 #ifdef CONFIG_M5_STAMP
 #define HARDWARE_VERSION "M5 Stamp"
 #endif
+#ifdef CONFIG_GIBRALTAR
+#define HARDWARE_VERSION "Gibraltar"
+#endif
 #ifdef CONFIG_ESP32_WROVER_B
 #define HARDWARE_VERSION "ESP32-WROVER-B"
 #endif

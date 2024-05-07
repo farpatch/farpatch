@@ -28,6 +28,9 @@ menu "Farpatch Configuration"
         config M5_STAMP
             depends on IDF_TARGET_ESP32C3
             bool "M5 Stamp"
+        config GIBRALTAR
+            depends on IDF_TARGET_ESP32C3
+            bool "Gibraltar"
         config ESP32_WROVER_B
             depends on IDF_TARGET_ESP32
             bool "ESP32-WROVER-B"

@@ -104,11 +104,18 @@ void platform_set_baud(uint32_t baud);
 #define SWCLK_PORT 0
 #define SWDIO_PORT 0
 
-/*		static uint8_t sleep_counter = 0; \*/
-/*		if ((sleep_counter += 1) == 0) {  \*/
-/*			vTaskDelay(1);                \*/
-/*		}                                 \*/
-
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+#include <hal/gpio_ll.h>
+#define gpio_set(port, pin)                            \
+	do {                                               \
+		GPIO.out_w1ts.out_w1ts = (1 << (uint32_t)pin); \
+	} while (0)
+#define gpio_clear(port, pin)                          \
+	do {                                               \
+		GPIO.out_w1tc.out_w1tc = (1 << (uint32_t)pin); \
+	} while (0)
+#define gpio_get(port, pin) ((GPIO.in.data >> pin) & 0x1)
+#else /* !CONFIG_IDF_TARGET_ESP32C3 */
 #define gpio_set(port, pin)     \
 	do {                        \
 		gpio_set_level(pin, 1); \
@@ -118,6 +125,7 @@ void platform_set_baud(uint32_t baud);
 		gpio_set_level(pin, 0); \
 	} while (0)
 #define gpio_get(port, pin) gpio_get_level(pin)
+#endif
 #define gpio_set_val(port, pin, value) \
 	if (value) {                       \
 		gpio_set(port, pin);           \
