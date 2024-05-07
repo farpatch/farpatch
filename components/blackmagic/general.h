@@ -337,6 +337,32 @@ void bmp_core_unlock();
 #define CONFIG_ADC_DEBUG_UNIT     -1
 #define CONFIG_RESET_PUSHPULL     1
 
+#elif defined(CONFIG_GIBRALTAR)
+#define CONFIG_TDI_GPIO           20
+#define CONFIG_TDO_GPIO           21
+#define CONFIG_TMS_SWDIO_GPIO     4
+#define CONFIG_TMS_SWDIO_DIR_GPIO -1
+#define CONFIG_TCK_SWCLK_GPIO     3
+#define CONFIG_NRST_GPIO          0
+#define CONFIG_RESET_SENSE_GPIO   -1
+#define CONFIG_LED_GPIO           -1
+#define CONFIG_LED2_GPIO          -1
+#define CONFIG_TCK_TDI_DIR_GPIO   -1
+#define CONFIG_UART_TX_GPIO       -1
+#define CONFIG_UART_RX_GPIO       -1
+#define CONFIG_VREF_ADC_GPIO      -1
+#define CONFIG_VREF_ADC_UNIT      -1
+#define CONFIG_VREF_ADC_CHANNEL   -1
+#define CONFIG_ADC_SYSTEM_CHANNEL -1
+#define CONFIG_ADC_SYSTEM_UNIT    -1
+#define CONFIG_ADC_USB_CHANNEL    -1
+#define CONFIG_ADC_USB_UNIT       -1
+#define CONFIG_ADC_EXT_CHANNEL    -1
+#define CONFIG_ADC_EXT_UNIT       -1
+#define CONFIG_ADC_DEBUG_CHANNEL  -1
+#define CONFIG_ADC_DEBUG_UNIT     -1
+#define CONFIG_RESET_PUSHPULL     1
+
 #elif defined(CONFIG_CUSTOM_HARDWARE)
 #define CONFIG_VREF_ADC_GPIO      -1
 #define CONFIG_VREF_ADC_UNIT      ADC_UNIT_1
