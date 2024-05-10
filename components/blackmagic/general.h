@@ -11,6 +11,7 @@
 #undef DEBUG_INFO
 #undef DEBUG_GDB
 #undef DEBUG_TARGET
+#undef DEBUG_TARGET_IS_NOOP
 
 #ifndef __FILENAME__
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
