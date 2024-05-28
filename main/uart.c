@@ -288,7 +288,7 @@ void uart_init(void)
 	ESP_LOGI(__func__, "configuring UART%d for target", TARGET_UART_IDX);
 
 	// Start UART tasks
-	xTaskCreate(uart_hw_task, "uart_hw_task", 2048, NULL, 1, NULL);
+	xTaskCreate(uart_hw_task, "uart_hw_task", 3072, NULL, 1, NULL);
 	xTaskCreate(uart_net_task, "uart_net_task", 6 * 1024, NULL, 1, NULL);
 #endif
 }
