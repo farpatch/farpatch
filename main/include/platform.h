@@ -26,6 +26,7 @@
 #include "timing.h"
 #include "driver/gpio.h"
 #include "hal/gpio_hal.h"
+#include "hal/gpio_ll.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -58,12 +59,11 @@ void platform_set_baud(uint32_t baud);
 #define DEBUG(x, ...)
 #endif
 
-#define SWDIO_MODE_FLOAT()                                                                \
-	do {                                                                                  \
-		/*gpio_ll_output_disable(GPIO_HAL_GET_HW(GPIO_PORT_0), CONFIG_TMS_SWDIO_GPIO); */ \
-		gpio_set_direction(CONFIG_TMS_SWDIO_GPIO, GPIO_MODE_INPUT);                       \
-		if (CONFIG_TMS_SWDIO_DIR_GPIO >= 0)                                               \
-			gpio_set_level(CONFIG_TMS_SWDIO_DIR_GPIO, 1);                                 \
+#define SWDIO_MODE_FLOAT()                                          \
+	do {                                                            \
+		gpio_set_direction(CONFIG_TMS_SWDIO_GPIO, GPIO_MODE_INPUT); \
+		if (CONFIG_TMS_SWDIO_DIR_GPIO >= 0)                         \
+			gpio_set_level(CONFIG_TMS_SWDIO_DIR_GPIO, 1);           \
 	} while (0)
 
 #define SWDIO_MODE_DRIVE()                                                          \
@@ -81,7 +81,6 @@ void platform_set_baud(uint32_t baud);
 		gpio_reset_pin(CONFIG_TCK_SWCLK_GPIO);                               \
 		if (CONFIG_TMS_SWDIO_DIR_GPIO >= 0)                                  \
 			gpio_reset_pin(CONFIG_TMS_SWDIO_DIR_GPIO);                       \
-                                                                             \
 		gpio_set_direction(CONFIG_TDI_GPIO, GPIO_MODE_OUTPUT);               \
 		gpio_set_direction(CONFIG_TDO_GPIO, GPIO_MODE_INPUT);                \
 		gpio_set_direction(CONFIG_TMS_SWDIO_GPIO, GPIO_MODE_INPUT_OUTPUT);   \
@@ -104,8 +103,7 @@ void platform_set_baud(uint32_t baud);
 #define SWCLK_PORT 0
 #define SWDIO_PORT 0
 
-#ifdef CONFIG_IDF_TARGET_ESP32C3
-#include <hal/gpio_ll.h>
+#if defined(CONFIG_IDF_TARGET_ESP32C3)
 #define gpio_set(port, pin)                            \
 	do {                                               \
 		GPIO.out_w1ts.out_w1ts = (1 << (uint32_t)pin); \
@@ -115,7 +113,33 @@ void platform_set_baud(uint32_t baud);
 		GPIO.out_w1tc.out_w1tc = (1 << (uint32_t)pin); \
 	} while (0)
 #define gpio_get(port, pin) ((GPIO.in.data >> pin) & 0x1)
-#else /* !CONFIG_IDF_TARGET_ESP32C3 */
+/* CONFIG_IDF_TARGET_ESP32C3 */
+
+#elif defined(CONFIG_IDF_TARGET_ESP32S3) || defined(CONFIG_IDF_TARGET_ESP32)
+#define gpio_set(port, pin)                       \
+	do {                                          \
+		if (pin < 0) {                            \
+		} else if (pin < 32) {                    \
+			GPIO.out_w1ts = (1 << (uint32_t)pin); \
+		} else if (pin < 64) {                    \
+			uint32_t p = pin - 32;                \
+			GPIO.out1_w1ts.data = (1 << p);       \
+		}                                         \
+	} while (0)
+#define gpio_clear(port, pin)                     \
+	do {                                          \
+		if (pin < 0) {                            \
+		} else if (pin < 32) {                    \
+			GPIO.out_w1tc = (1 << (uint32_t)pin); \
+		} else if (pin < 64) {                    \
+			uint32_t p = pin - 32;                \
+			GPIO.out1_w1tc.data = (1 << p);       \
+		}                                         \
+	} while (0)
+#define gpio_get(port, pin) ((pin < 0 ? 0 : pin < 32 ? (GPIO.in >> pin) : (GPIO.in1.data >> (pin - 32))) & 0x1)
+/* CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32 */
+
+#else
 #define gpio_set(port, pin)     \
 	do {                        \
 		gpio_set_level(pin, 1); \
@@ -126,6 +150,7 @@ void platform_set_baud(uint32_t baud);
 	} while (0)
 #define gpio_get(port, pin) gpio_get_level(pin)
 #endif
+
 #define gpio_set_val(port, pin, value) \
 	if (value) {                       \
 		gpio_set(port, pin);           \
