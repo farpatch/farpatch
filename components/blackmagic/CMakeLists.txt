@@ -12,6 +12,7 @@ idf_component_register(
                  "blackmagic/src/platforms/common/cdcacm.c"
                  "blackmagic/src/platforms/common/jtagtap.c"
                  "blackmagic/src/platforms/common/swdptap.c"
+                 "blackmagic/src/platforms/common/syscalls.c"
                  "blackmagic/src/platforms/common/usb_serial.c"
                  "blackmagic/src/platforms/common/usb_dfu_stub.c"
                  "blackmagic/src/platforms/common/usb.c"
