@@ -429,16 +429,15 @@ esp_err_t cgi_scan_jtag(httpd_req_t *req)
 {
 	maybe_init_exceptions();
 	bmp_core_lock();
-	volatile exception_s e;
-	TRY_CATCH (e, EXCEPTION_ALL) {
+	TRY (EXCEPTION_ALL) {
 		jtag_scan();
 	}
-	switch (e.type) {
+	CATCH () {
 	case EXCEPTION_TIMEOUT:
 		ESP_LOGE(TAG, "Timeout during scan. Is target stuck in WFI?\n");
 		break;
 	case EXCEPTION_ERROR:
-		ESP_LOGE(TAG, "Exception: %s\n", e.msg);
+		ESP_LOGE(TAG, "Exception: %s\n", exception_frame.msg);
 		break;
 	}
 	bmp_core_unlock();
@@ -450,16 +449,15 @@ esp_err_t cgi_scan_swd(httpd_req_t *req)
 {
 	maybe_init_exceptions();
 	bmp_core_lock();
-	volatile exception_s e;
-	TRY_CATCH (e, EXCEPTION_ALL) {
+	TRY (EXCEPTION_ALL) {
 		adiv5_swd_scan(0);
 	}
-	switch (e.type) {
+	CATCH () {
 	case EXCEPTION_TIMEOUT:
 		ESP_LOGE(TAG, "Timeout during scan. Is target stuck in WFI?\n");
 		break;
 	case EXCEPTION_ERROR:
-		ESP_LOGE(TAG, "Exception: %s\n", e.msg);
+		ESP_LOGE(TAG, "Exception: %s\n", exception_frame.msg);
 		break;
 	}
 	bmp_core_unlock();
