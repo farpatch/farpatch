@@ -63,7 +63,6 @@ static void gdb_wifi_destroy(struct bmp_wifi_instance *instance)
 static void IRAM_ATTR gdb_wifi_task(void *arg)
 {
 	struct bmp_wifi_instance *instance = (struct bmp_wifi_instance *)arg;
-	volatile struct exception e;
 
 	void *tls[2] = {};
 	tls[0] = arg;
@@ -87,14 +86,14 @@ static void IRAM_ATTR gdb_wifi_task(void *arg)
 
 	char *pbuf = instance->rx_buf;
 
-	TRY_CATCH (e, EXCEPTION_ALL) {
+	TRY (EXCEPTION_ALL) {
 		extern target_controller_s gdb_controller;
 		adiv5_swd_scan(0);
 		cur_target = target_attach_n(1, &gdb_controller);
 	}
 
 	while (true) {
-		TRY_CATCH (e, EXCEPTION_ALL) {
+		TRY (EXCEPTION_ALL) {
 			SET_IDLE_STATE(0);
 			while (gdb_target_running && cur_target) {
 				gdb_poll_target();
@@ -120,12 +119,12 @@ static void IRAM_ATTR gdb_wifi_task(void *arg)
 			}
 			gdb_main(pbuf, sizeof(instance->rx_buf), size);
 		}
-		if (e.type == EXCEPTION_NETWORK) {
-			ESP_LOGE("exception", "network exception -- exiting: %s", e.msg);
+		CATCH () {
+		case EXCEPTION_NETWORK:
+			ESP_LOGE("exception", "network exception -- exiting: %s", exception_frame.msg);
 			target_list_free();
 			break;
-		}
-		if (e.type) {
+		default:
 			gdb_putpacketz("EFF");
 			target_list_free();
 			morse("TARGET LOST.", 1);
