@@ -116,25 +116,25 @@ void platform_set_baud(uint32_t baud);
 /* CONFIG_IDF_TARGET_ESP32C3 */
 
 #elif defined(CONFIG_IDF_TARGET_ESP32S3) || defined(CONFIG_IDF_TARGET_ESP32)
-#define gpio_set(port, pin)                       \
-	do {                                          \
-		if (pin < 0) {                            \
-		} else if (pin < 32) {                    \
-			GPIO.out_w1ts = (1 << (uint32_t)pin); \
-		} else if (pin < 64) {                    \
-			uint32_t p = pin - 32;                \
-			GPIO.out1_w1ts.data = (1 << p);       \
-		}                                         \
+#define gpio_set(port, pin)                              \
+	do {                                                 \
+		if (pin < 0) {                                   \
+		} else if (pin < 32) {                           \
+			GPIO.out_w1ts = (1 << (uint32_t)(pin & 31)); \
+		} else if (pin < 64) {                           \
+			uint32_t p = pin - 32;                       \
+			GPIO.out1_w1ts.data = (1 << p);              \
+		}                                                \
 	} while (0)
-#define gpio_clear(port, pin)                     \
-	do {                                          \
-		if (pin < 0) {                            \
-		} else if (pin < 32) {                    \
-			GPIO.out_w1tc = (1 << (uint32_t)pin); \
-		} else if (pin < 64) {                    \
-			uint32_t p = pin - 32;                \
-			GPIO.out1_w1tc.data = (1 << p);       \
-		}                                         \
+#define gpio_clear(port, pin)                            \
+	do {                                                 \
+		if (pin < 0) {                                   \
+		} else if (pin < 32) {                           \
+			GPIO.out_w1tc = (1 << (uint32_t)(pin & 31)); \
+		} else if (pin < 64) {                           \
+			uint32_t p = pin - 32;                       \
+			GPIO.out1_w1tc.data = (1 << p);              \
+		}                                                \
 	} while (0)
 #define gpio_get(port, pin) ((pin < 0 ? 0 : pin < 32 ? (GPIO.in >> pin) : (GPIO.in1.data >> (pin - 32))) & 0x1)
 /* CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32 */
