@@ -377,7 +377,7 @@ static esp_err_t cgi_frog_fs_hook(httpd_req_t *req)
 	// Temporarily reuse the chunk buffer to store the URI,
 	// minus any extraneous bits
 	memset(chunk, 0, sizeof(chunk));
-	strncpy(chunk, req->uri, strlen(req->uri));
+	strncpy(chunk, req->uri, sizeof(chunk));
 	char *param;
 	param = (char *)strstr(chunk, "?");
 	if (param != NULL)
