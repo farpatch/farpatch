@@ -25,6 +25,7 @@
 #define SWO_DEFAULT_BAUD 0
 void traceswo_init(uint32_t baudrate, uint32_t swo_chan_bitmask);
 void traceswo_baud(unsigned int baud);
+uint32_t traceswo_get_baudrate(void);
 #else
 void traceswo_init(uint32_t swo_chan_bitmask);
 #endif
