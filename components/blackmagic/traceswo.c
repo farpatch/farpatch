@@ -282,3 +282,8 @@ void traceswo_baud(unsigned int baud)
 	// msg.size = baud;
 	// xQueueSend(uart_event_queue, &msg, portMAX_DELAY);
 }
+
+uint32_t traceswo_get_baudrate(void)
+{
+	return 115200;//uart_get_baudrate(TRACEUART);
+}
