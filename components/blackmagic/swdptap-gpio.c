@@ -47,7 +47,9 @@ static bool IRAM_ATTR swdptap_seq_in_parity(uint32_t *ret, size_t clock_cycles) 
 static void IRAM_ATTR swdptap_seq_out(uint32_t tms_states, size_t clock_cycles) __attribute__((optimize(3)));
 static void IRAM_ATTR swdptap_seq_out_parity(uint32_t tms_states, size_t clock_cycles) __attribute__((optimize(3)));
 
+static uint32_t IRAM_ATTR swdptap_seq_in_clk_delay(size_t clock_cycles) __attribute__((optimize(3)));
 static uint32_t IRAM_ATTR swdptap_seq_in_no_delay(size_t clock_cycles) __attribute__((optimize(3)));
+static void IRAM_ATTR swdptap_seq_out_clk_delay(uint32_t tms_states, size_t clock_cycles) __attribute__((optimize(3)));
 static void IRAM_ATTR swdptap_seq_out_no_delay(uint32_t tms_states, size_t clock_cycles) __attribute__((optimize(3)));
 
 static void swdptap_turnaround(const swdio_status_t dir)
@@ -98,11 +100,7 @@ static uint32_t swdptap_seq_in_clk_delay(const size_t clock_cycles)
 			continue;
 		value >>= 1U;
 		value |= (uint32_t)bit << 31U;
-		/* Reordering barrier */
-		__asm__("" ::: "memory");
 		gpio_clear(SWCLK_PORT, SWCLK_PIN);
-		/* Reordering barrier */
-		__asm__("" ::: "memory");
 	}
 	value >>= (32U - clock_cycles);
 	return value;
@@ -119,21 +117,26 @@ static uint32_t swdptap_seq_in_no_delay(const size_t clock_cycles)
 	 * to a faster down-count that uses SUBS followed by BCS/BCC.
 	 */
 	for (size_t cycle = clock_cycles; cycle--;) {
-		/* Reordering barrier */
-		__asm__("" ::: "memory");
 		bool bit = gpio_get(SWDIO_IN_PORT, SWDIO_IN_PIN);
 		gpio_set(SWCLK_PORT, SWCLK_PIN);
-		__asm__("nop" ::: "memory");
 		value >>= 1U;
 		value |= (uint32_t)bit << 31U;
-		/* Reordering barrier */
-		__asm__("" ::: "memory");
 		gpio_clear(SWCLK_PORT, SWCLK_PIN);
-		/* Reordering barrier */
-		__asm__("" ::: "memory");
 	}
 	value >>= (32U - clock_cycles);
 	return value;
+
+	// This version processes bytes without reversing them, but doesn't
+	// seem to be any faster:
+	// uint32_t value = 0;
+	// for (size_t cycle = 0; cycle < clock_cycles;) {
+	// 	if (gpio_get(SWDIO_PORT, SWDIO_PIN))
+	// 		value |= (1U << cycle);
+	// 	gpio_set(SWCLK_PORT, SWCLK_PIN);
+	// 	++cycle;
+	// 	gpio_clear(SWCLK_PORT, SWCLK_PIN);
+	// }
+	// return value;
 }
 
 static uint32_t swdptap_seq_in(size_t clock_cycles)
@@ -180,19 +183,14 @@ static void swdptap_seq_out_clk_delay(const uint32_t tms_states, const size_t cl
 	 * to a faster down-count that uses SUBS followed by BCS/BCC.
 	 */
 	for (size_t cycle = clock_cycles; cycle--;) {
-		/* Reordering barrier */
-		__asm__("" ::: "memory");
 		gpio_set_val(SWDIO_PORT, SWDIO_PIN, bit);
 		for (volatile uint32_t counter = target_clk_divider; counter > 0; --counter)
 			continue;
 		gpio_set(SWCLK_PORT, SWCLK_PIN);
 		for (volatile uint32_t counter = target_clk_divider; counter > 0; --counter)
 			continue;
-		__asm__("nop" ::: "memory");
 		value >>= 1U;
 		bit = value & 1U;
-		/* Reordering barrier */
-		__asm__("" ::: "memory");
 		gpio_clear(SWCLK_PORT, SWCLK_PIN);
 	}
 }
@@ -209,18 +207,21 @@ static void swdptap_seq_out_no_delay(const uint32_t tms_states, const size_t clo
 	 * to a faster down-count that uses SUBS followed by BCS/BCC.
 	 */
 	for (size_t cycle = clock_cycles; cycle--;) {
-		/* Reordering barrier */
-		__asm__("" ::: "memory");
 		gpio_clear(SWCLK_PORT, SWCLK_PIN);
 		gpio_set_val(SWDIO_PORT, SWDIO_PIN, bit);
 		gpio_set(SWCLK_PORT, SWCLK_PIN);
-		__asm__("nop" ::: "memory");
 		value >>= 1U;
 		bit = value & 1U;
-		/* Reordering barrier */
-		__asm__("" ::: "memory");
 	}
 	gpio_clear(SWCLK_PORT, SWCLK_PIN);
+
+	// For unknown reasons, this non-reversed version no longer works.
+	// for (size_t cycle = 0; cycle < clock_cycles;) {
+	// 	++cycle;
+	// 	gpio_set(SWCLK_PORT, SWCLK_PIN);
+	// 	gpio_set_val(SWDIO_PORT, SWDIO_PIN, tms_states & (1 << cycle));
+	// 	gpio_clear(SWCLK_PORT, SWCLK_PIN);
+	// }
 }
 
 static void swdptap_seq_out(const uint32_t tms_states, const size_t clock_cycles)
