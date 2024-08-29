@@ -209,4 +209,10 @@ menu "Farpatch Configuration"
         default 2323
         help
         UART will listen on this port for UDP connections. Use -1 to disable.
+
+    config PRODUCT_NAME
+        string "Product Name"
+        default "farpatch"
+        help
+        Name of the product, used in hostnames and mDNS.
 endmenu
