@@ -27,24 +27,13 @@
 #include "general.h"
 #include "platform.h"
 #include "timing.h"
+#include "maths_utils.h"
 
 #if SWDPTAP_MODE_GPIO == 1
 
-// Insert a sleep statement at least once every 1.5 seconds in order
-// to ensure non-critical tasks can run.
-static void IRAM_ATTR maybe_delay(void)
-{
-	static TickType_t last_sleep = 0;
-	static TickType_t current_sleep = 0;
+void IRAM_ATTR platform_maybe_delay(void);
 
-	current_sleep = xTaskGetTickCount();
-	if ((current_sleep - last_sleep) > pdMS_TO_TICKS(3500)) {
-		last_sleep = current_sleep;
-		vTaskDelay(2);
-	}
-}
-
-uint32_t swd_delay_cnt = 0;
+uint32_t target_clk_divider = UINT32_MAX;
 swd_proc_s swd_proc;
 
 typedef enum swdio_status_e {
@@ -58,9 +47,7 @@ static bool IRAM_ATTR swdptap_seq_in_parity(uint32_t *ret, size_t clock_cycles) 
 static void IRAM_ATTR swdptap_seq_out(uint32_t tms_states, size_t clock_cycles) __attribute__((optimize(3)));
 static void IRAM_ATTR swdptap_seq_out_parity(uint32_t tms_states, size_t clock_cycles) __attribute__((optimize(3)));
 
-static uint32_t IRAM_ATTR swdptap_seq_in_swd_delay(size_t clock_cycles) __attribute__((optimize(3)));
 static uint32_t IRAM_ATTR swdptap_seq_in_no_delay(size_t clock_cycles) __attribute__((optimize(3)));
-static void IRAM_ATTR swdptap_seq_out_swd_delay(uint32_t tms_states, size_t clock_cycles) __attribute__((optimize(3)));
 static void IRAM_ATTR swdptap_seq_out_no_delay(uint32_t tms_states, size_t clock_cycles) __attribute__((optimize(3)));
 
 static void swdptap_turnaround(const swdio_status_t dir)
@@ -72,128 +59,192 @@ static void swdptap_turnaround(const swdio_status_t dir)
 	olddir = dir;
 
 #ifdef DEBUG_SWD_BITS
-	DEBUG("%s", dir ? "\n-> " : "\n<- ");
+	DEBUG_INFO("%s", dir ? "\n-> " : "\n<- ");
 #endif
 
-	if (dir == SWDIO_STATUS_FLOAT)
+	if (dir == SWDIO_STATUS_FLOAT) {
 		SWDIO_MODE_FLOAT();
+	}
+	for (volatile uint32_t counter = target_clk_divider + 1; counter > 0; --counter)
+		continue;
+
 	gpio_set(SWCLK_PORT, SWCLK_PIN);
-	for (volatile int32_t cnt = swd_delay_cnt; --cnt > 0;)
+	for (volatile uint32_t counter = target_clk_divider + 1; counter > 0; --counter)
 		continue;
+
 	gpio_clear(SWCLK_PORT, SWCLK_PIN);
-	for (volatile int32_t cnt = swd_delay_cnt; --cnt > 0;)
-		continue;
-	if (dir == SWDIO_STATUS_DRIVE)
+	if (dir == SWDIO_STATUS_DRIVE) {
 		SWDIO_MODE_DRIVE();
+	}
 }
 
-static uint32_t swdptap_seq_in_swd_delay(const size_t clock_cycles)
+
+static uint32_t swdptap_seq_in_clk_delay(const size_t clock_cycles)
 {
 	uint32_t value = 0;
-	for (size_t cycle = 0; cycle < clock_cycles;) {
-		if (gpio_get(SWDIO_PORT, SWDIO_PIN))
-			value |= (1U << cycle);
+	if (!clock_cycles)
+		return 0;
+	/*
+	 * Count down instead of up, because with an up-count, some ARM-GCC
+	 * versions use an explicit CMP, missing the optimization of converting
+	 * to a faster down-count that uses SUBS followed by BCS/BCC.
+	 */
+	for (size_t cycle = clock_cycles; cycle--;) {
+		for (volatile uint32_t counter = target_clk_divider; counter > 0; --counter)
+			continue;
+		const bool bit = gpio_get(SWDIO_IN_PORT, SWDIO_IN_PIN);
 		gpio_set(SWCLK_PORT, SWCLK_PIN);
-		for (volatile int32_t cnt = swd_delay_cnt - 2; cnt > 0; cnt--)
+		for (volatile uint32_t counter = target_clk_divider; counter > 0; --counter)
 			continue;
-		++cycle;
+		value >>= 1U;
+		value |= (uint32_t)bit << 31U;
+		/* Reordering barrier */
+		__asm__("" ::: "memory");
 		gpio_clear(SWCLK_PORT, SWCLK_PIN);
-		for (volatile int32_t cnt = swd_delay_cnt - 2; cnt > 0; cnt--)
-			continue;
+		/* Reordering barrier */
+		__asm__("" ::: "memory");
 	}
+	value >>= (32U - clock_cycles);
 	return value;
 }
 
 static uint32_t swdptap_seq_in_no_delay(const size_t clock_cycles)
 {
+	if (!clock_cycles)
+		return 0;
 	uint32_t value = 0;
-	for (size_t cycle = 0; cycle < clock_cycles;) {
-		if (gpio_get(SWDIO_PORT, SWDIO_PIN))
-			value |= (1U << cycle);
+	/*
+	 * Count down instead of up, because with an up-count, some ARM-GCC
+	 * versions use an explicit CMP, missing the optimization of converting
+	 * to a faster down-count that uses SUBS followed by BCS/BCC.
+	 */
+	for (size_t cycle = clock_cycles; cycle--;) {
+		/* Reordering barrier */
+		__asm__("" ::: "memory");
+		bool bit = gpio_get(SWDIO_IN_PORT, SWDIO_IN_PIN);
 		gpio_set(SWCLK_PORT, SWCLK_PIN);
-		++cycle;
+		__asm__("nop" ::: "memory");
+		value >>= 1U;
+		value |= (uint32_t)bit << 31U;
+		/* Reordering barrier */
+		__asm__("" ::: "memory");
 		gpio_clear(SWCLK_PORT, SWCLK_PIN);
+		/* Reordering barrier */
+		__asm__("" ::: "memory");
 	}
+	value >>= (32U - clock_cycles);
 	return value;
 }
 
 static uint32_t swdptap_seq_in(size_t clock_cycles)
 {
-	maybe_delay();
+	platform_maybe_delay();
 	swdptap_turnaround(SWDIO_STATUS_FLOAT);
-	if (swd_delay_cnt)
-		return swdptap_seq_in_swd_delay(clock_cycles);
+	if (target_clk_divider != UINT32_MAX)
+		return swdptap_seq_in_clk_delay(clock_cycles);
 	else // NOLINT(readability-else-after-return)
 		return swdptap_seq_in_no_delay(clock_cycles);
 }
 
 static bool swdptap_seq_in_parity(uint32_t *ret, size_t clock_cycles)
 {
-	maybe_delay();
+	platform_maybe_delay();
 	const uint32_t result = swdptap_seq_in(clock_cycles);
+	for (volatile uint32_t counter = target_clk_divider + 1; counter > 0; --counter)
+		continue;
 
-	int parity = __builtin_popcount(result);
-	const bool bit = gpio_get(SWDIO_PORT, SWDIO_PIN);
+	const bool bit = gpio_get(SWDIO_IN_PORT, SWDIO_IN_PIN);
+
 	gpio_set(SWCLK_PORT, SWCLK_PIN);
-	for (volatile int32_t cnt = swd_delay_cnt - 2; cnt > 0; cnt--)
+	for (volatile uint32_t counter = target_clk_divider + 1; counter > 0; --counter)
 		continue;
-	parity += bit ? 1 : 0;
+
 	gpio_clear(SWCLK_PORT, SWCLK_PIN);
-	for (volatile int32_t cnt = swd_delay_cnt - 2; cnt > 0; cnt--)
-		continue;
-	*ret = result;
 	/* Terminate the read cycle now */
 	swdptap_turnaround(SWDIO_STATUS_DRIVE);
-	return parity & 1;
+
+	const bool parity = calculate_odd_parity(result);
+	*ret = result;
+	return parity == bit;
 }
 
-static void swdptap_seq_out_swd_delay(const uint32_t tms_states, const size_t clock_cycles)
+static void swdptap_seq_out_clk_delay(const uint32_t tms_states, const size_t clock_cycles)
 {
-	for (size_t cycle = 0; cycle < clock_cycles;) {
-		++cycle;
+	uint32_t value = tms_states;
+	bool bit = value & 1U;
+	if (!clock_cycles)
+		return;
+	/*
+	 * Count down instead of up, because with an up-count, some ARM-GCC
+	 * versions use an explicit CMP, missing the optimization of converting
+	 * to a faster down-count that uses SUBS followed by BCS/BCC.
+	 */
+	for (size_t cycle = clock_cycles; cycle--;) {
+		/* Reordering barrier */
+		__asm__("" ::: "memory");
+		gpio_set_val(SWDIO_PORT, SWDIO_PIN, bit);
+		for (volatile uint32_t counter = target_clk_divider; counter > 0; --counter)
+			continue;
 		gpio_set(SWCLK_PORT, SWCLK_PIN);
-		for (volatile int32_t cnt = swd_delay_cnt - 2; cnt > 0; cnt--)
+		for (volatile uint32_t counter = target_clk_divider; counter > 0; --counter)
 			continue;
-		gpio_set_val(SWDIO_PORT, SWDIO_PIN, tms_states & (1 << cycle));
+		__asm__("nop" ::: "memory");
+		value >>= 1U;
+		bit = value & 1U;
+		/* Reordering barrier */
+		__asm__("" ::: "memory");
 		gpio_clear(SWCLK_PORT, SWCLK_PIN);
-		for (volatile int32_t cnt = swd_delay_cnt - 2; cnt > 0; cnt--)
-			continue;
 	}
 }
 
 static void swdptap_seq_out_no_delay(const uint32_t tms_states, const size_t clock_cycles)
 {
-	for (size_t cycle = 0; cycle < clock_cycles;) {
-		++cycle;
-		gpio_set(SWCLK_PORT, SWCLK_PIN);
-		gpio_set_val(SWDIO_PORT, SWDIO_PIN, tms_states & (1 << cycle));
+	uint32_t value = tms_states;
+	bool bit = value & 1U;
+	if (!clock_cycles)
+		return;
+	/*
+	 * Count down instead of up, because with an up-count, some ARM-GCC
+	 * versions use an explicit CMP, missing the optimization of converting
+	 * to a faster down-count that uses SUBS followed by BCS/BCC.
+	 */
+	for (size_t cycle = clock_cycles; cycle--;) {
+		/* Reordering barrier */
+		__asm__("" ::: "memory");
 		gpio_clear(SWCLK_PORT, SWCLK_PIN);
+		gpio_set_val(SWDIO_PORT, SWDIO_PIN, bit);
+		gpio_set(SWCLK_PORT, SWCLK_PIN);
+		__asm__("nop" ::: "memory");
+		value >>= 1U;
+		bit = value & 1U;
+		/* Reordering barrier */
+		__asm__("" ::: "memory");
 	}
+	gpio_clear(SWCLK_PORT, SWCLK_PIN);
 }
 
 static void swdptap_seq_out(const uint32_t tms_states, const size_t clock_cycles)
 {
-	maybe_delay();
+	platform_maybe_delay();
 	swdptap_turnaround(SWDIO_STATUS_DRIVE);
-	gpio_set_val(SWDIO_PORT, SWDIO_PIN, tms_states & 1U);
-	if (swd_delay_cnt)
-		swdptap_seq_out_swd_delay(tms_states, clock_cycles);
+	if (target_clk_divider != UINT32_MAX)
+		swdptap_seq_out_clk_delay(tms_states, clock_cycles);
 	else
 		swdptap_seq_out_no_delay(tms_states, clock_cycles);
 }
 
 static void swdptap_seq_out_parity(const uint32_t tms_states, const size_t clock_cycles)
 {
-	maybe_delay();
-	int parity = __builtin_popcount(tms_states);
+	platform_maybe_delay();
+	const bool parity = calculate_odd_parity(tms_states);
 	swdptap_seq_out(tms_states, clock_cycles);
-	gpio_set_val(SWDIO_PORT, SWDIO_PIN, parity & 1U);
+	gpio_set_val(SWDIO_PORT, SWDIO_PIN, parity);
+	for (volatile uint32_t counter = target_clk_divider + 1; counter > 0; --counter)
+		continue;
 	gpio_set(SWCLK_PORT, SWCLK_PIN);
-	for (volatile int32_t cnt = swd_delay_cnt - 2; cnt > 0; cnt--)
+	for (volatile uint32_t counter = target_clk_divider + 1; counter > 0; --counter)
 		continue;
 	gpio_clear(SWCLK_PORT, SWCLK_PIN);
-	for (volatile int32_t cnt = swd_delay_cnt - 2; cnt > 0; cnt--)
-		continue;
 }
 
 void swdptap_init(void)
