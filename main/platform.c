@@ -434,6 +434,9 @@ int vprintf_noop(const char *s, va_list va)
 }
 
 extern void gdb_net_task();
+#ifdef CONFIG_RTT_ON_BOOT
+void rtt_monitor_task(void *params);
+#endif /* CONFIG_RTT_ON_BOOT */
 
 void app_main(void)
 {
@@ -499,10 +502,21 @@ void app_main(void)
 	uart_init();
 	rtt_init();
 
-	xTaskCreate(&gdb_net_task, "gdb_net", 2000, NULL, 1, NULL);
+	xTaskCreate(gdb_net_task, "gdb_net", 2000, NULL, 1, NULL);
 
 	ESP_LOGI(TAG, "starting tftp server");
 	ota_tftp_init_server(69, 4);
+
+#ifdef CONFIG_RESET_TARGET_ON_BOOT
+	ESP_LOGI(TAG, "resetting target on boot");
+	platform_nrst_set_val(true);
+	vTaskDelay(pdMS_TO_TICKS(100));
+	platform_nrst_set_val(false);
+#endif /* CONFIG_RESET_TARGET_ON_BOOT */
+
+#ifdef CONFIG_RTT_ON_BOOT
+	xTaskCreate(rtt_monitor_task, "rtt_monitor", 3000, NULL, tskIDLE_PRIORITY + 1, NULL);
+#endif /* CONFIG_RTT_ON_BOOT */
 
 	ESP_LOGI(__func__, "Free heap %" PRId32, esp_get_free_heap_size());
 

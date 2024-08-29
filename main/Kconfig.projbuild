@@ -215,4 +215,16 @@ menu "Farpatch Configuration"
         default "farpatch"
         help
         Name of the product, used in hostnames and mDNS.
+
+    config RTT_ON_BOOT
+        bool "Start RTT server on boot"
+        default n
+        help
+        Start RTT on boot without waiting for a GDB client to connect.
+
+    config RESET_TARGET_ON_BOOT
+        bool "Reset target on boot"
+        default n
+        help
+        Reset the target when the debugger starts up.
 endmenu
