@@ -4,3 +4,4 @@ main/include/version.h
 sdkconfig
 sdkconfig.old
 managed_components/
+.vscode/
