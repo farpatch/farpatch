@@ -275,7 +275,7 @@ void rtt_monitor_task(void *params)
 					break;
 				}
 				poll_rtt(cur_target);
-				platform_delay(poll_rtt_ms());
+				platform_delay(rtt_min_poll_ms);
 			}
 			// No target and no clients, delay for a bit
 			if (num_clients == 0) {
