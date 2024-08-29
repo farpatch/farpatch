@@ -231,7 +231,7 @@ static void append_networking_to_output(httpd_req_t *req)
 	const char *name1;
 	const char *name2;
 	wilma_unique_words(&name1, &name2);
-	snprintf(generated_hostname, sizeof(generated_hostname) - 1, "farpatch-%s-%s.local", name1, name2);
+	snprintf(generated_hostname, sizeof(generated_hostname) - 1, CONFIG_PRODUCT_NAME "-%s-%s.local", name1, name2);
 	snprintf(buffer, sizeof(buffer) - 1,
 		",\"networking\": {"
 		"\"hostname\": \"%s\","
@@ -429,10 +429,12 @@ esp_err_t cgi_scan_jtag(httpd_req_t *req)
 {
 	maybe_init_exceptions();
 	bmp_core_lock();
-	TRY (EXCEPTION_ALL) {
+	TRY(EXCEPTION_ALL)
+	{
 		jtag_scan();
 	}
-	CATCH () {
+	CATCH()
+	{
 	case EXCEPTION_TIMEOUT:
 		ESP_LOGE(TAG, "Timeout during scan. Is target stuck in WFI?\n");
 		break;
@@ -449,10 +451,12 @@ esp_err_t cgi_scan_swd(httpd_req_t *req)
 {
 	maybe_init_exceptions();
 	bmp_core_lock();
-	TRY (EXCEPTION_ALL) {
+	TRY(EXCEPTION_ALL)
+	{
 		adiv5_swd_scan(0);
 	}
-	CATCH () {
+	CATCH()
+	{
 	case EXCEPTION_TIMEOUT:
 		ESP_LOGE(TAG, "Timeout during scan. Is target stuck in WFI?\n");
 		break;

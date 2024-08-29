@@ -22,16 +22,23 @@
 #include "rtt.h"
 
 static SemaphoreHandle_t bmp_core_mutex = NULL;
-static int num_clients;
+static volatile int num_clients;
+static volatile bool gdb_is_free = true;
+
+uint32_t poll_rtt_ms(void);
 
 void bmp_core_lock(void)
 {
-	xSemaphoreTake(bmp_core_mutex, portMAX_DELAY);
+	while (!xSemaphoreTake(bmp_core_mutex, pdMS_TO_TICKS(300))) {
+		ESP_LOGE("gdb", "Failed to take BMP core mutex after 300 ms! Trying again...");
+	}
 }
 
 void bmp_core_unlock(void)
 {
-	xSemaphoreGive(bmp_core_mutex);
+	if (xSemaphoreGive(bmp_core_mutex) != pdTRUE) {
+		ESP_LOGE("gdb", "Failed to give BMP core mutex!");
+	}
 }
 
 IRAM_ATTR char *gdb_packet_buffer(void)
@@ -52,9 +59,12 @@ struct exception **get_innermost_exception(void)
 static void gdb_wifi_destroy(struct bmp_wifi_instance *instance)
 {
 	ESP_LOGI("gdb", "destroy %d", instance->sock);
-	num_clients--;
+	num_clients -= 1;
 
-	close(instance->sock);
+	if (instance->sock != -1) {
+		close(instance->sock);
+	}
+	gdb_is_free = true;
 
 	free(instance);
 	vTaskDelete(NULL);
@@ -82,18 +92,23 @@ static void IRAM_ATTR gdb_wifi_task(void *arg)
 	setsockopt(instance->sock, IPPROTO_TCP, TCP_KEEPCNT, (void *)&opt, sizeof(opt));
 	opt = 1;
 
-	num_clients++;
+	num_clients += 1;
 
 	char *pbuf = instance->rx_buf;
 
-	TRY (EXCEPTION_ALL) {
-		extern target_controller_s gdb_controller;
-		adiv5_swd_scan(0);
-		cur_target = target_attach_n(1, &gdb_controller);
+	while (!gdb_is_free) {
+		platform_delay(10);
+	}
+	gdb_is_free = false;
+
+	if (gdb_target_running && cur_target) {
+		target_halt_request(cur_target);
+		gdb_target_running = false;
 	}
 
 	while (true) {
-		TRY (EXCEPTION_ALL) {
+		TRY(EXCEPTION_ALL)
+		{
 			SET_IDLE_STATE(0);
 			while (gdb_target_running && cur_target) {
 				gdb_poll_target();
@@ -119,19 +134,30 @@ static void IRAM_ATTR gdb_wifi_task(void *arg)
 			}
 			gdb_main(pbuf, sizeof(instance->rx_buf), size);
 		}
-		CATCH () {
+		CATCH()
+		{
 		case EXCEPTION_NETWORK:
-			ESP_LOGE("exception", "network exception -- exiting: %s", exception_frame.msg);
-			target_list_free();
-			break;
+			ESP_LOGE("gdb", "network exception -- exiting: %s", exception_frame.msg);
+			TRY(EXCEPTION_ALL)
+			{
+				target_list_free();
+			}
+			CATCH()
+			{
+			default:
+				ESP_LOGE("gdb", "exception freeing target list");
+				break;
+			}
+			gdb_wifi_destroy(instance);
+			return;
 		default:
 			gdb_putpacketz("EFF");
 			target_list_free();
 			morse("TARGET LOST.", 1);
+			gdb_wifi_destroy(instance);
+			return;
 		}
 	}
-
-	gdb_wifi_destroy(instance);
 }
 
 static void new_bmp_wifi_instance(int sock)
@@ -147,7 +173,7 @@ static void new_bmp_wifi_instance(int sock)
 	memset(instance, 0, sizeof(*instance));
 	instance->sock = sock;
 
-	xTaskCreate(gdb_wifi_task, name, 5000, (void *)instance, tskIDLE_PRIORITY + 1, &instance->pid);
+	xTaskCreate(gdb_wifi_task, name, 5000, (void *)instance, tskIDLE_PRIORITY + 2, &instance->pid);
 }
 
 void gdb_net_task(void *arg)
@@ -179,3 +205,98 @@ void gdb_net_task(void *arg)
 		}
 	}
 }
+
+#ifdef CONFIG_RTT_ON_BOOT
+const char *target_halt_reason_str[] = {
+	"RUNNING", /* Target not halted */
+	"ERROR",   /* Failed to read target status */
+	"REQUEST",
+	"STEPPING",
+	"BREAKPOINT",
+	"WATCHPOINT",
+	"FAULT",
+};
+
+void rtt_monitor_task(void *params)
+{
+	(void)params;
+	extern target_controller_s gdb_controller;
+
+	struct bmp_wifi_instance *instance = malloc(sizeof(struct bmp_wifi_instance));
+	if (!instance) {
+		return;
+	}
+	memset(instance, 0, sizeof(*instance));
+	instance->sock = -1;
+	instance->is_shutting_down = true; // Set this to `true` to prevent IO from occurring
+
+	void *tls[2] = {};
+	tls[0] = instance;
+	vTaskSetThreadLocalStoragePointer(NULL, GDB_TLS_INDEX, tls); // used for exception handling
+
+	while (true) {
+		gdb_is_free = true;
+		while (num_clients > 0) {
+			platform_delay(700);
+			continue;
+		}
+		gdb_is_free = false;
+		TRY(EXCEPTION_ALL)
+		{
+			// Scan for the target
+			if (!cur_target) {
+				// TODO: Extend this to JTAG scan as well
+				if (!adiv5_swd_scan(0)) {
+					platform_delay(200);
+					continue;
+				}
+				cur_target = target_attach_n(1, &gdb_controller);
+				if (!cur_target) {
+					platform_delay(200);
+					continue;
+				}
+				// If we successfully attached, set the target running
+				target_halt_resume(cur_target, false);
+				gdb_target_running = true;
+			}
+
+			ESP_LOGI("rtt", "monitor attached to target");
+			while (cur_target && num_clients == 0) {
+				/* poll target */
+				target_addr_t watch;
+				target_halt_reason_e reason = target_halt_poll(cur_target, &watch);
+				if (reason) {
+					ESP_LOGI("rtt", "target halted: %s", target_halt_reason_str[reason]);
+					gdb_target_running = false;
+					if (cur_target) {
+						target_halt_resume(cur_target, false);
+						gdb_target_running = true;
+					}
+					break;
+				}
+				poll_rtt(cur_target);
+				platform_delay(rtt_min_poll_ms);
+			}
+			// No target and no clients, delay for a bit
+			if (num_clients == 0) {
+				platform_delay(200);
+			}
+		}
+		CATCH()
+		{
+		case EXCEPTION_NETWORK:
+			ESP_LOGE("rtt", "network exception in RTT thread: %s", exception_frame.msg);
+			target_list_free();
+			target_detach(cur_target);
+			cur_target = NULL;
+			break;
+		default:
+			ESP_LOGE("rtt", "generic exception in RTT thread: %s", exception_frame.msg);
+			target_list_free();
+			target_detach(cur_target);
+			cur_target = NULL;
+			break;
+		}
+	}
+}
+#endif /* CONFIG_RTT_ON_BOOT */

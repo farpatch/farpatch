@@ -97,6 +97,7 @@ void platform_set_baud(uint32_t baud);
 #define TDO_PIN CONFIG_TDO_GPIO
 
 #define SWDIO_PIN CONFIG_TMS_SWDIO_GPIO
+#define SWDIO_IN_PIN CONFIG_TMS_SWDIO_GPIO
 #define SWCLK_PIN CONFIG_TCK_SWCLK_GPIO
 #define SRST_PIN  CONFIG_SRST_GPIO
 

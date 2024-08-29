@@ -45,11 +45,10 @@
 #include <string.h>
 #include <assert.h>
 
-#define GDB_TLS_INDEX 1
+#define GDB_TLS_INDEX     1
 #define EXCEPTION_NETWORK 0x40
 
-struct gdb_wifi_instance
-{
+struct gdb_wifi_instance {
 	int sock;
 	uint8_t tx_buf[256];
 	uint8_t rx_buf[512];
@@ -63,21 +62,19 @@ struct gdb_wifi_instance
 
 static IRAM_ATTR unsigned char gdb_wifi_if_getchar(struct gdb_wifi_instance *instance)
 {
-	if (instance->is_shutting_down)
-	{
+	if (instance->is_shutting_down) {
 		return 0;
 	}
 
-	if (instance->rx_bufpos < instance->rx_bufsize)
-	{
+	if (instance->rx_bufpos < instance->rx_bufsize) {
 		return instance->rx_buf[instance->rx_bufpos++];
 	}
 
 	instance->rx_bufpos = 0;
 	instance->rx_bufsize = recv(instance->sock, instance->rx_buf, sizeof(instance->rx_buf), 0);
-	if (instance->rx_bufsize <= 0)
-	{
+	if (instance->rx_bufsize <= 0) {
 		instance->is_shutting_down = true;
+		close(instance->sock);
 		raise_exception(EXCEPTION_NETWORK, "error on getchar");
 		// should not be reached
 		return 0;
@@ -87,8 +84,7 @@ static IRAM_ATTR unsigned char gdb_wifi_if_getchar(struct gdb_wifi_instance *ins
 
 static IRAM_ATTR unsigned char gdb_wifi_if_getchar_to(struct gdb_wifi_instance *instance, int timeout)
 {
-	if (instance->is_shutting_down)
-	{
+	if (instance->is_shutting_down) {
 		return 0xff;
 	}
 	// Optimization for "MSG_PEEK"
@@ -110,15 +106,14 @@ static IRAM_ATTR unsigned char gdb_wifi_if_getchar_to(struct gdb_wifi_instance *
 	FD_SET(instance->sock, &fds);
 
 	int ret = select(instance->sock + 1, &fds, NULL, NULL, (timeout >= 0) ? &tv : NULL);
-	if (ret > 0)
-	{
+	if (ret > 0) {
 		char c = gdb_wifi_if_getchar(instance);
 		return c;
 	}
 
-	if (ret < 0)
-	{
+	if (ret < 0) {
 		instance->is_shutting_down = true;
+		close(instance->sock);
 		raise_exception(EXCEPTION_NETWORK, "error on getchar_to");
 	}
 	return 0xFF;
@@ -126,20 +121,17 @@ static IRAM_ATTR unsigned char gdb_wifi_if_getchar_to(struct gdb_wifi_instance *
 
 static IRAM_ATTR void gdb_wifi_if_putchar(struct gdb_wifi_instance *instance, unsigned char c, int flush)
 {
-	if (instance->is_shutting_down)
-	{
+	if (instance->is_shutting_down) {
 		return;
 	}
 
 	instance->tx_buf[instance->tx_bufsize++] = c;
-	if (flush || (instance->tx_bufsize == sizeof(instance->tx_buf)))
-	{
-		if (instance->sock > 0)
-		{
+	if (flush || (instance->tx_bufsize == sizeof(instance->tx_buf))) {
+		if (instance->sock > 0) {
 			int ret = send(instance->sock, instance->tx_buf, instance->tx_bufsize, 0);
-			if (ret <= 0)
-			{
+			if (ret <= 0) {
 				instance->is_shutting_down = true;
+				close(instance->sock);
 				raise_exception(EXCEPTION_NETWORK, "error on putchar");
 				// should not be reached
 				return;
