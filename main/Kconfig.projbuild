@@ -227,4 +227,10 @@ menu "Farpatch Configuration"
         default n
         help
         Reset the target when the debugger starts up.
+
+    config RTT_MAX_CONNECTIONS
+        int "Maximum number of simultaneous RTT connections"
+        default 1
+        help
+        The maximum number of RTT clients that can be connected at one time.
 endmenu
