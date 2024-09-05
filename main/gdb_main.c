@@ -261,7 +261,7 @@ void rtt_monitor_task(void *params)
 			}
 
 			ESP_LOGI("rtt", "monitor attached to target");
-			while (cur_target && num_clients == 0) {
+			while (cur_target && (num_clients == 0)) {
 				/* poll target */
 				target_addr_t watch;
 				target_halt_reason_e reason = target_halt_poll(cur_target, &watch);
