@@ -217,7 +217,7 @@ static void append_reset_reason(httpd_req_t *req)
 
 static void append_networking_to_output(httpd_req_t *req)
 {
-	char buffer[256];
+	char buffer[384];
 	esp_netif_ip_info_t ip_info = wilma_get_ip_info();
 	char ip[IP4ADDR_STRLEN_MAX]; /* note: IP4ADDR_STRLEN_MAX is defined in lwip */
 	char gw[IP4ADDR_STRLEN_MAX];
