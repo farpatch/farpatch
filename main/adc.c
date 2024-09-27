@@ -97,6 +97,12 @@ void adc_task(void *ignored)
 {
 	(void)ignored;
 
+	if (CONFIG_VREF_ADC_UNIT == -1) {
+		ESP_LOGI(TAG, "adc is disabled");
+		vTaskDelete(NULL);
+		return;
+	}
+
 	ESP_LOGI(TAG, "ADC task started");
 	if (!adc_init(&adc_cali_handle, &adc_handle, CONFIG_VREF_ADC_UNIT)) {
 		ESP_LOGE(TAG, "ADC init failed");

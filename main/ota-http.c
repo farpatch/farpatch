@@ -10,11 +10,66 @@
 
 static const char *TAG = "ota-http";
 const static char http_content_type_json[] = "application/json";
+static size_t total;
+static size_t remaining;
 
 esp_err_t cgi_flash_init(httpd_req_t *req)
 {
 	const char msg[] = "blackmagic.bin";
 	httpd_resp_send(req, msg, sizeof(msg) - 1);
+	return ESP_OK;
+}
+
+esp_err_t cgi_flash_progress(httpd_req_t *req)
+{
+	httpd_resp_set_type(req, http_content_type_json);
+	char buff[64];
+	int len = snprintf(buff, sizeof(buff), "{\"total\": %u, \"remaining\": %u}", total, remaining);
+	httpd_resp_send(req, buff, len);
+	return ESP_OK;
+}
+
+esp_err_t cgi_flash_status(httpd_req_t *req)
+{
+	httpd_resp_set_type(req, http_content_type_json);
+	char buff[256];
+
+	const esp_partition_t *current_partition = esp_ota_get_running_partition();
+	const esp_partition_t *next_partition = NULL;
+	if (current_partition != NULL) {
+		next_partition = esp_ota_get_next_update_partition(current_partition);
+	}
+	esp_ota_img_states_t current_partition_state = ESP_OTA_IMG_UNDEFINED;
+	esp_ota_img_states_t next_partition_state = ESP_OTA_IMG_UNDEFINED;
+	uint32_t next_partition_address = 0;
+
+	esp_ota_get_state_partition(current_partition, &current_partition_state);
+	esp_ota_get_state_partition(next_partition, &next_partition_state);
+
+	if (next_partition != NULL) {
+		next_partition_address = next_partition->address;
+	}
+	const char *update_status = "valid";
+	if (next_partition_state != ESP_OTA_IMG_VALID) {
+		update_status = "fail";
+	}
+
+	int len = snprintf(buff, sizeof(buff),
+		"{"
+		"\"ota\":{"
+		"\"current\":{"
+		"\"address\":%" PRId32 ","
+		"\"state\":%d"
+		"},"
+		"\"next\":{"
+		"\"address\":%" PRId32 ","
+		"\"state\":%d"
+		"},"
+		"\"status\":\"%s\""
+		"}}",
+		current_partition->address, current_partition_state, next_partition_address, next_partition_state,
+		update_status);
+	httpd_resp_send(req, buff, len);
 	return ESP_OK;
 }
 
@@ -24,7 +79,10 @@ esp_err_t cgi_flash_upload(httpd_req_t *req)
 	esp_ota_handle_t update_handle;
 	esp_err_t err;
 
-	err = esp_ota_begin(update_part, OTA_SIZE_UNKNOWN, &update_handle);
+	ESP_LOGI(TAG, "beginning update of %d bytes", req->content_len);
+	httpd_resp_set_type(req, http_content_type_json);
+
+	err = esp_ota_begin(update_part, req->content_len > 0 ? req->content_len : OTA_SIZE_UNKNOWN, &update_handle);
 	if (err != ESP_OK) {
 		const char msg[] = "{\"error\": \"Failed to begin the update\"}";
 		httpd_resp_send(req, msg, sizeof(msg) - 1);
@@ -34,7 +92,8 @@ esp_err_t cgi_flash_upload(httpd_req_t *req)
 	ESP_LOGI(TAG, "esp_ota_begin succeeded");
 	httpd_resp_set_hdr(req, "Connection", "close");
 
-	int remaining = req->content_len;
+	remaining = req->content_len;
+	total = remaining;
 
 	while (remaining > 0) {
 		char buff[256];
@@ -87,7 +146,6 @@ esp_err_t cgi_flash_upload(httpd_req_t *req)
 
 	ESP_LOGI(TAG, "esp ota succeeded");
 
-	httpd_resp_set_type(req, http_content_type_json);
 	const char response[] = "{\"success\": true}";
 	httpd_resp_send(req, response, sizeof(response) - 1);
 

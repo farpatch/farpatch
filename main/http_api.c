@@ -217,7 +217,7 @@ static void append_reset_reason(httpd_req_t *req)
 
 static void append_networking_to_output(httpd_req_t *req)
 {
-	char buffer[384];
+	char buffer[512];
 	esp_netif_ip_info_t ip_info = wilma_get_ip_info();
 	char ip[IP4ADDR_STRLEN_MAX]; /* note: IP4ADDR_STRLEN_MAX is defined in lwip */
 	char gw[IP4ADDR_STRLEN_MAX];
@@ -241,12 +241,13 @@ static void append_networking_to_output(httpd_req_t *req)
 		"\"ssid\":\"%s\","
 		"\"gdb\": %d,"
 		"\"rtt-tcp\": %d,"
+		"\"rtt-count\": %d,"
 		"\"rtt-udp\": %d,"
 		"\"uart-tcp\": %d,"
 		"\"uart-udp\": %d,"
 		"\"tftp\": \"firmware.bin\""
 		"}",
-		generated_hostname, ip, netmask, gw, wilma_current_ssid(), CONFIG_GDB_TCP_PORT, CONFIG_RTT_TCP_PORT,
+		generated_hostname, ip, netmask, gw, wilma_current_ssid(), CONFIG_GDB_TCP_PORT, CONFIG_RTT_TCP_PORT, CONFIG_RTT_MAX_CHANNELS,
 		CONFIG_RTT_UDP_PORT, CONFIG_UART_TCP_PORT, CONFIG_UART_UDP_PORT);
 	httpd_resp_sendstr_chunk(req, buffer);
 }

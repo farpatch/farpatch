@@ -11,6 +11,8 @@ extern "C" {
 esp_err_t cgi_flash_init(httpd_req_t *req);
 esp_err_t cgi_flash_upload(httpd_req_t *req);
 esp_err_t cgi_flash_reboot(httpd_req_t *req);
+esp_err_t cgi_flash_progress(httpd_req_t *req);
+esp_err_t cgi_flash_status(httpd_req_t *req);
 
 #ifdef __cplusplus
 }

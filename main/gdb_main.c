@@ -11,6 +11,7 @@
 
 #include "esp_log.h"
 
+#include "cortexm.h"
 #include "exception.h"
 #include "gdb_if.h"
 #include "gdb_main_farpatch.h"
@@ -20,6 +21,8 @@
 #include "morse.h"
 #include "platform.h"
 #include "rtt.h"
+#include "target.h"
+#include "target_internal.h"
 
 static SemaphoreHandle_t bmp_core_mutex = NULL;
 static volatile int num_clients;
@@ -70,6 +73,18 @@ static void gdb_wifi_destroy(struct bmp_wifi_instance *instance)
 	vTaskDelete(NULL);
 }
 
+static void cortexm_vector_disable(target_s *target, uint32_t vectors) {
+	// This function only makes sense for cortex targets
+	if (!target_is_cortexm(target)) {
+		return;
+	}
+	uint32_t existing = cortexm_demcr_read(target);
+	uint32_t updated = existing & ~vectors;
+	if (updated != existing) {
+		cortexm_demcr_write(target, updated);
+	}
+}
+
 static void IRAM_ATTR gdb_wifi_task(void *arg)
 {
 	struct bmp_wifi_instance *instance = (struct bmp_wifi_instance *)arg;
@@ -106,6 +121,8 @@ static void IRAM_ATTR gdb_wifi_task(void *arg)
 		gdb_target_running = false;
 	}
 
+	target_s *prev_target = cur_target;
+
 	while (true) {
 		TRY(EXCEPTION_ALL)
 		{
@@ -133,6 +150,21 @@ static void IRAM_ATTR gdb_wifi_task(void *arg)
 				SET_IDLE_STATE(0);
 			}
 			gdb_main(pbuf, sizeof(instance->rx_buf), size);
+			// If the target changes, re-update the vectors.
+			if (cur_target != prev_target) {
+				uint32_t vectors_to_disable = 0
+#if !defined(CONFIG_CATCH_CORE_RESET)
+	| CORTEXM_DEMCR_VC_CORERESET
+#endif
+#if !defined(CONFIG_CATCH_CORE_HARDFAULT)
+	| CORTEXM_DEMCR_VC_HARDERR
+#endif
+				;
+				if (vectors_to_disable) {
+					cortexm_vector_disable(cur_target, vectors_to_disable);
+				}
+				prev_target = cur_target;
+			}
 		}
 		CATCH()
 		{

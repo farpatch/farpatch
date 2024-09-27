@@ -57,12 +57,10 @@ static esp_err_t cgi_baud(httpd_req_t *req)
 	char querystring[64];
 
 	httpd_req_get_url_query_str(req, querystring, sizeof(querystring));
-	if (ESP_OK == httpd_query_key_value(querystring, "set", buff, sizeof(buff)))
-	{
+	if (ESP_OK == httpd_query_key_value(querystring, "set", buff, sizeof(buff))) {
 		int baud = atoi(buff);
 		// printf("baud %d\n", baud);
-		if (baud)
-		{
+		if (baud) {
 			platform_set_baud(baud);
 		}
 	}
@@ -95,19 +93,18 @@ static int task_status_cmp(const void *a, const void *b)
 #endif
 
 static const char *const task_state_name[] = {
-	"eRunning",	  /* A task is querying the state of itself, so must be running. */
-	"eReady",	  /* The task being queried is in a read or pending ready list. */
-	"eBlocked",	  /* The task being queried is in the Blocked state. */
+	"eRunning", /* A task is querying the state of itself, so must be running. */
+	"eReady",   /* The task being queried is in a read or pending ready list. */
+	"eBlocked", /* The task being queried is in the Blocked state. */
 	"eSuspended", /* The task being queried is in the Suspended state, or is in the Blocked state with an infinite time out. */
-	"eDeleted",	  /* The task being queried has been deleted, but its TCB has not yet been freed. */
-	"eInvalid"	  /* Used as an 'invalid state' value. */
+	"eDeleted", /* The task being queried has been deleted, but its TCB has not yet been freed. */
+	"eInvalid"  /* Used as an 'invalid state' value. */
 };
 
 #if CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID
 static const char *core_str(int core_id)
 {
-	switch (core_id)
-	{
+	switch (core_id) {
 	case 0:
 		return "0";
 	case 1:
@@ -162,45 +159,44 @@ static esp_err_t cgi_system_status_header(httpd_req_t *req)
 	uint32_t swo_baud = 0;
 	uart_get_baudrate(1, &target_baud);
 	extern int swo_active;
-	if (swo_active)
-	{
+	if (swo_active) {
 		uart_get_baudrate(2, &swo_baud);
 	}
 
 	snprintf(buffer, sizeof(buffer),
-			 "free_heap: %" PRIu32 "\n"
-			 "uptime: %" PRIu32 "\n",
-			 esp_get_free_heap_size(), xTaskGetTickCount() * portTICK_PERIOD_MS);
+		"free_heap: %" PRIu32 "\n"
+		"uptime: %" PRIu32 "\n",
+		esp_get_free_heap_size(), xTaskGetTickCount() * portTICK_PERIOD_MS);
 	httpd_resp_sendstr_chunk(req, buffer);
 
-	snprintf(buffer, sizeof(buffer), "reset_reason: %d %s -- %s\n", esp_reset_reason(), ESP_RESET_REASONS[esp_reset_reason()], ESP_RESET_DESCRIPTIONS[esp_reset_reason()]);
+	snprintf(buffer, sizeof(buffer), "reset_reason: %d %s -- %s\n", esp_reset_reason(),
+		ESP_RESET_REASONS[esp_reset_reason()], ESP_RESET_DESCRIPTIONS[esp_reset_reason()]);
 	httpd_resp_sendstr_chunk(req, buffer);
 
 	snprintf(buffer, sizeof(buffer),
-			 "target_baud_rate: %" PRIu32 "\n"
-			 "swo_baud_rate: %" PRIu32 "\n",
-			 target_baud, swo_baud);
+		"target_baud_rate: %" PRIu32 "\n"
+		"swo_baud_rate: %" PRIu32 "\n",
+		target_baud, swo_baud);
 	httpd_resp_sendstr_chunk(req, buffer);
 
 	snprintf(buffer, sizeof(buffer), "target voltage: %" PRIu32 " mV\n", voltages_mv[ADC_TARGET_VOLTAGE]);
 	httpd_resp_sendstr_chunk(req, buffer);
 
 	snprintf(buffer, sizeof(buffer),
-			 "uart_overruns: %" PRIu32 "\n"
-			 "uart_frame_errors: %" PRIu32 "\n"
-			 "uart_queue_full_cnt: %" PRIu32 "\n"
-			 "uart_rx_count: %" PRIu32 "\n"
-			 "uart_tx_count: %" PRIu32 "\n"
-			 "uart_irq_count: %" PRIu32 "\n"
-			 "uart_rx_data_relay: %" PRIu32 "\n",
-			 uart_overrun_cnt, uart_frame_error_cnt, uart_queue_full_cnt, uart_rx_count, uart_tx_count, uart_irq_count,
-			 uart_rx_data_relay);
+		"uart_overruns: %" PRIu32 "\n"
+		"uart_frame_errors: %" PRIu32 "\n"
+		"uart_queue_full_cnt: %" PRIu32 "\n"
+		"uart_rx_count: %" PRIu32 "\n"
+		"uart_tx_count: %" PRIu32 "\n"
+		"uart_irq_count: %" PRIu32 "\n"
+		"uart_rx_data_relay: %" PRIu32 "\n",
+		uart_overrun_cnt, uart_frame_error_cnt, uart_queue_full_cnt, uart_rx_count, uart_tx_count, uart_irq_count,
+		uart_rx_data_relay);
 	httpd_resp_sendstr_chunk(req, buffer);
 
 	const esp_partition_t *current_partition = esp_ota_get_running_partition();
 	const esp_partition_t *next_partition = NULL;
-	if (current_partition != NULL)
-	{
+	if (current_partition != NULL) {
 		next_partition = esp_ota_get_next_update_partition(current_partition);
 	}
 	esp_ota_img_states_t current_partition_state = ESP_OTA_IMG_UNDEFINED;
@@ -217,22 +213,20 @@ static esp_err_t cgi_system_status_header(httpd_req_t *req)
 	// 	ESP_LOGE(__func__, "unable to get next partition state: %08x", ret);
 	// }
 
-	if (next_partition != NULL)
-	{
+	if (next_partition != NULL) {
 		next_partition_address = next_partition->address;
 	}
 	const char *update_status = "update valid\n";
-	if (next_partition_state != ESP_OTA_IMG_VALID)
-	{
+	if (next_partition_state != ESP_OTA_IMG_VALID) {
 		update_status = "UPDATE FAILED\n";
 	}
 
 	snprintf(buffer, sizeof(buffer),
-			 "current partition: 0x%08" PRIx32 " %d\n"
-			 "next partition: 0x%08" PRIx32 " %d\n"
-			 "%s",
-			 current_partition->address, current_partition_state, next_partition_address, next_partition_state,
-			 update_status);
+		"current partition: 0x%08" PRIx32 " %d\n"
+		"next partition: 0x%08" PRIx32 " %d\n"
+		"%s",
+		current_partition->address, current_partition_state, next_partition_address, next_partition_state,
+		update_status);
 	httpd_resp_sendstr_chunk(req, buffer);
 
 	httpd_resp_sendstr_chunk(req, "tasks:\n");
@@ -248,8 +242,7 @@ static esp_err_t cgi_system_status(httpd_req_t *req)
 	uint32_t totalRuntime;
 
 	static hashmap *task_times;
-	if (!task_times)
-	{
+	if (!task_times) {
 		task_times = hashmap_new();
 	}
 
@@ -279,13 +272,11 @@ static esp_err_t cgi_system_status(httpd_req_t *req)
 	totalRuntime = totalRuntime - lastTotalRuntime;
 	lastTotalRuntime = tmp;
 	totalRuntime /= 100;
-	if (totalRuntime == 0)
-	{
+	if (totalRuntime == 0) {
 		totalRuntime = 1;
 	}
 
-	for (i = 0; (pxTaskStatusArray != NULL) && (i < uxArraySize); i++)
-	{
+	for (i = 0; (pxTaskStatusArray != NULL) && (i < uxArraySize); i++) {
 		int len;
 		char buff[256];
 		TaskStatus_t *tsk = &pxTaskStatusArray[i];
@@ -296,22 +287,21 @@ static esp_err_t cgi_system_status(httpd_req_t *req)
 		tsk->ulRunTimeCounter -= last_task_time;
 
 		len = snprintf(buff, sizeof(buff),
-					   "\tid: %3u, name: %16s, prio: %3d, state: %10s, stack_hwm: %5" PRIu32 ", "
+			"\tid: %3u, name: %16s, prio: %3d, state: %10s, stack_hwm: %5" PRIu32 ", "
 #if CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID
-					   "core: %3s, "
+			"core: %3s, "
 #endif
-					   "cpu: %3" PRId32 "%%, pc: 0x%08" PRIx32 "\n",
-					   tsk->xTaskNumber, tsk->pcTaskName, tsk->uxCurrentPriority, task_state_name[tsk->eCurrentState],
-					   tsk->usStackHighWaterMark,
+			"cpu: %3" PRId32 "%%, pc: 0x%08" PRIx32 "\n",
+			tsk->xTaskNumber, tsk->pcTaskName, tsk->uxCurrentPriority, task_state_name[tsk->eCurrentState],
+			tsk->usStackHighWaterMark,
 #if CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID
-					   core_str((int)tsk->xCoreID),
+			core_str((int)tsk->xCoreID),
 #endif
-					   tsk->ulRunTimeCounter / totalRuntime, (*((uint32_t **)tsk->xHandle))[1]);
+			tsk->ulRunTimeCounter / totalRuntime, (*((uint32_t **)tsk->xHandle))[1]);
 		httpd_resp_send_chunk(req, buff, len);
 	}
 
-	if (pxTaskStatusArray != NULL)
-	{
+	if (pxTaskStatusArray != NULL) {
 		free(pxTaskStatusArray);
 	}
 
@@ -331,8 +321,7 @@ static esp_err_t cgi_redirect(httpd_req_t *req)
 }
 
 // Struct to keep extension->mime data in
-typedef struct
-{
+typedef struct {
 	const char *ext;
 	const char *mimetype;
 } MimeMap;
@@ -340,7 +329,9 @@ typedef struct
 // The mappings from file extensions to mime types. If you need an extra mime type,
 // add it here.
 static const MimeMap mimeTypes[] = {
-	{"htm", "text/html"}, {"html", "text/html"}, {"css", "text/css"}, {"js", "text/javascript"}, {"txt", "text/plain"}, {"jpg", "image/jpeg"}, {"jpeg", "image/jpeg"}, {"png", "image/png"}, {"svg", "image/svg+xml"}, {"xml", "text/xml"}, {"json", "application/json"}, {"ico", "image/x-icon"}, {NULL, "text/html"}, // default value
+	{"htm", "text/html"}, {"html", "text/html"}, {"css", "text/css"}, {"js", "text/javascript"}, {"txt", "text/plain"},
+	{"jpg", "image/jpeg"}, {"jpeg", "image/jpeg"}, {"png", "image/png"}, {"svg", "image/svg+xml"}, {"xml", "text/xml"},
+	{"json", "application/json"}, {"ico", "image/x-icon"}, {NULL, "text/html"}, // default value
 };
 
 // Returns a static char* to a mime type for a given url to a file.
@@ -380,8 +371,7 @@ static esp_err_t cgi_frog_fs_hook(httpd_req_t *req)
 	strncpy(chunk, req->uri, sizeof(chunk));
 	char *param;
 	param = (char *)strstr(chunk, "?");
-	if (param != NULL)
-	{
+	if (param != NULL) {
 		/* separate uri from parameters for now, set back later */
 		*param = 0;
 	}
@@ -389,26 +379,19 @@ static esp_err_t cgi_frog_fs_hook(httpd_req_t *req)
 	frogfs_file_t *file = frogfs_fopen(frog_fs, chunk);
 	httpd_resp_set_hdr(req, "Connection", "Close");
 
-	if (file != NULL)
-	{
+	if (file != NULL) {
 		httpd_resp_set_type(req, frogfs_get_mime_type(req->uri));
-	}
-	else
-	{
+	} else {
 		size_t uri_len = strlen(req->uri);
 		// If the URI ends in a `/`, don't add an extra one.
-		if (req->uri[uri_len - 1] == '/')
-		{
+		if (req->uri[uri_len - 1] == '/') {
 			snprintf(chunk, sizeof(chunk) - 1, "%sindex.html", req->uri);
-		}
-		else
-		{
+		} else {
 			snprintf(chunk, sizeof(chunk) - 1, "%s/index.html", req->uri);
 		}
 		file = frogfs_fopen(frog_fs, chunk);
 
-		if (file == NULL)
-		{
+		if (file == NULL) {
 			return httpd_resp_send_404(req);
 		}
 		httpd_resp_set_type(req, frogfs_get_mime_type(chunk));
@@ -422,8 +405,7 @@ static esp_err_t cgi_frog_fs_hook(httpd_req_t *req)
 		char accept_encoding_buffer[64];
 		bool found = (httpd_req_get_hdr_value_str(
 						  req, "Accept-Encoding", accept_encoding_buffer, sizeof(accept_encoding_buffer)) == ESP_OK);
-		if (!found || (strstr(accept_encoding_buffer, "gzip") == NULL))
-		{
+		if (!found || (strstr(accept_encoding_buffer, "gzip") == NULL)) {
 			// No Accept-Encoding: gzip header present
 			frogfs_fclose(file);
 			return httpd_resp_send_err(
@@ -431,15 +413,13 @@ static esp_err_t cgi_frog_fs_hook(httpd_req_t *req)
 		}
 	}
 
-	if (is_gzip)
-	{
+	if (is_gzip) {
 		httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
 	}
 
 	// httpd_resp_send(req, "testing", strlen("testing"));
 
-	while ((chunk_bytes = frogfs_fread(file, chunk, sizeof(chunk))) > 0)
-	{
+	while ((chunk_bytes = frogfs_fread(file, chunk, sizeof(chunk))) > 0) {
 		httpd_resp_send_chunk(req, chunk, chunk_bytes);
 	}
 	// Empty chunk closes the connection
@@ -477,7 +457,7 @@ static const httpd_uri_t basic_handlers[] = {
 		.handler = cgi_scan_swd,
 	},
 	{
-		.uri = "/wifi",
+		.uri = "/wifi", // Legacy
 		.method = HTTP_GET,
 		.handler = cgi_redirect,
 		.user_ctx = (void *)"/wifi.html",
@@ -485,23 +465,23 @@ static const httpd_uri_t basic_handlers[] = {
 
 	// OTA updates
 	{
-		.uri = "/flash",
+		.uri = "/flash", // Legacy
 		.method = HTTP_GET,
 		.handler = cgi_redirect,
 		.user_ctx = (void *)"/flash/",
 	},
 	{
-		.uri = "/flash/init",
+		.uri = "/flash/init", // Legacy
 		.method = HTTP_GET,
 		.handler = cgi_flash_init,
 	},
 	{
-		.uri = "/flash/upload",
+		.uri = "/flash/upload", // Legacy
 		.method = HTTP_POST,
 		.handler = cgi_flash_upload,
 	},
 	{
-		.uri = "/flash/reboot",
+		.uri = "/flash/reboot", // Legacy
 		.method = HTTP_GET,
 		.handler = cgi_flash_reboot,
 	},
@@ -527,6 +507,16 @@ static const httpd_uri_t basic_handlers[] = {
 		.handler = cgi_flash_reboot,
 	},
 	{
+		.uri = "/fp/flash/progress",
+		.method = HTTP_GET,
+		.handler = cgi_flash_progress,
+	},
+	{
+		.uri = "/fp/flash/status",
+		.method = HTTP_GET,
+		.handler = cgi_flash_status,
+	},
+	{
 		.uri = "/fp/storage",
 		.method = HTTP_DELETE,
 		.handler = cgi_storage_delete,
@@ -534,12 +524,12 @@ static const httpd_uri_t basic_handlers[] = {
 
 	// UART configuration
 	{
-		.uri = "/uart/baud",
+		.uri = "/uart/baud", // Legacy
 		.handler = cgi_baud,
 		.method = HTTP_GET,
 	},
 	{
-		.uri = "/uart/break",
+		.uri = "/uart/break", // Legacy
 		.handler = cgi_uart_break,
 		.method = HTTP_GET,
 	},
@@ -624,37 +614,37 @@ static const httpd_uri_t basic_handlers[] = {
 		.handler = cgi_sta_connect_json,
 	},
 	{
-		.uri = "/ap.json",
+		.uri = "/ap.json", // legacy
 		.handler = cgi_sta_scan_results_json,
 		.method = HTTP_GET,
 	},
 	{
-		.uri = "/ap.json",
+		.uri = "/ap.json", // legacy
 		.handler = cgi_ap_configure,
 		.method = HTTP_POST,
 	},
 	{
-		.uri = "/apscan.json",
+		.uri = "/apscan.json", // legacy
 		.handler = cgi_sta_start_scan_json,
 		.method = HTTP_GET,
 	},
 	{
-		.uri = "/connect.json",
+		.uri = "/connect.json", // legacy
 		.method = HTTP_GET,
 		.handler = cgi_sta_connect_json,
 	},
 	{
-		.uri = "/connect.json",
+		.uri = "/connect.json", // legacy
 		.method = HTTP_POST,
 		.handler = cgi_sta_connect_json,
 	},
 	{
-		.uri = "/connect.json",
+		.uri = "/connect.json", // legacy
 		.method = HTTP_DELETE,
 		.handler = cgi_sta_connect_json,
 	},
 	{
-		.uri = "/status.json",
+		.uri = "/status.json", // legacy
 		.method = HTTP_GET,
 		.handler = cgi_sta_status_json,
 	},
@@ -685,14 +675,12 @@ httpd_handle_t webserver_start(void)
 	/* This check should be a part of http_server */
 	config.max_open_sockets = (CONFIG_LWIP_MAX_SOCKETS - 4);
 
-	if (httpd_start(&http_daemon, &config) != ESP_OK)
-	{
+	if (httpd_start(&http_daemon, &config) != ESP_OK) {
 		ESP_LOGE(TAG, "Unable to start HTTP server");
 		return NULL;
 	}
 
-	for (i = 0; i < basic_handlers_count; i++)
-	{
+	for (i = 0; i < basic_handlers_count; i++) {
 		httpd_register_uri_handler(http_daemon, &basic_handlers[i]);
 	}
 

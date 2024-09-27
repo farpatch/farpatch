@@ -7,6 +7,7 @@
 #define __BLACKMAGIC_GENERAL_H__
 
 #include <string.h>
+#undef DEBUG_ERROR
 #undef DEBUG_WARN
 #undef DEBUG_INFO
 #undef DEBUG_GDB
@@ -77,6 +78,10 @@ void bmp_core_unlock();
 	} while (0)
 #endif //CONFIG_LOG_TIMESTAMP_SOURCE_xxx
 
+#define DEBUG_ERROR(x, ...)                      \
+	do {                                         \
+		ESP_LOGE_BMP("BMP:E", x, ##__VA_ARGS__); \
+	} while (0)
 #define DEBUG_WARN(x, ...)                       \
 	do {                                         \
 		ESP_LOGW_BMP("BMP:W", x, ##__VA_ARGS__); \
