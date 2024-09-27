@@ -28,7 +28,7 @@
  */
 
 #include "general.h"
-#include "traceswo.h"
+#include "swo.h"
 // #include <esp32/clk.h>
 #include <esp_log.h>
 #include <esp_task_wdt.h>
@@ -47,6 +47,27 @@
 #define UART_TERMINATE        0x1001
 
 int swo_active = 0;
+
+/* USB callback for the raw data endpoint to ask for a new buffer of data */
+void swo_send_buffer(usbd_device *dev, uint8_t ep)
+{
+	(void)dev;
+	(void)ep;
+}
+
+/* Set a bitmask of SWO ITM streams to be decoded */
+void swo_itm_decode_set_mask(uint32_t mask)
+{
+	(void)mask;
+}
+
+uint16_t swo_itm_decode(usbd_device *usbd_dev, uint8_t ep, const uint8_t *data, uint16_t len)
+{
+	(void)ep;
+	(void)data;
+	(void)usbd_dev;
+	return len;
+}
 
 // static esp_err_t uart_reset_rx_fifo(uart_port_t uart_num)
 // {
@@ -248,7 +269,7 @@ int swo_active = 0;
 // 	vTaskDelete(NULL);
 // }
 
-void traceswo_deinit(void)
+void swo_deinit(bool deallocate)
 {
 	// swo_active = 0;
 	// if (rx_pid) {
@@ -261,7 +282,7 @@ void traceswo_deinit(void)
 	// 	}
 	// }
 }
-void traceswo_init(uint32_t baudrate, uint32_t swo_chan_bitmask)
+void swo_init(swo_coding_e swo_mode, uint32_t baudrate, uint32_t itm_stream_bitmask)
 {
 	// if (!rx_pid) {
 	// 	ESP_LOGI(TAG, "initializing traceswo");
@@ -275,7 +296,7 @@ void traceswo_init(uint32_t baudrate, uint32_t swo_chan_bitmask)
 	// swo_active = 1;
 }
 
-void traceswo_baud(unsigned int baud)
+void bmd_usart_set_baudrate(uint32_t usart, uint32_t baud_rate)
 {
 	// uart_event_t msg;
 	// msg.type = 0x1000;
@@ -283,7 +304,7 @@ void traceswo_baud(unsigned int baud)
 	// xQueueSend(uart_event_queue, &msg, portMAX_DELAY);
 }
 
-uint32_t traceswo_get_baudrate(void)
+uint32_t swo_uart_get_baudrate(void)
 {
-	return 115200;//uart_get_baudrate(TRACEUART);
+	return 115200; //uart_get_baudrate(TRACEUART);
 }
