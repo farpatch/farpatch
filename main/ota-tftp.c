@@ -46,7 +46,7 @@ inline static u8_t netbuf_read_u8(struct netbuf *netbuf, u16_t offs)
 	return result;
 }
 
-#define TFTP_FIRMWARE_FILE "firmware.bin"
+#define TFTP_FIRMWARE_FILE "farpatch.bin"
 #define TFTP_OCTET_MODE    "octet" /* non-case-sensitive */
 
 #define TFTP_OP_RRQ   1
@@ -183,7 +183,7 @@ static void tftp_task(void *listen_port)
 	netconn_bind(nc, IP_ADDR_ANY, (int)listen_port);
 	//bind(sock, (struct socaddr*)&addr, sizeof(addr));
 
-	/* We expect a WRQ packet with filename "firmware.bin" and "octet" mode,
+	/* We expect a WRQ packet with filename "farpatch.bin" and "octet" mode,
     */
 	while (1) {
 		/* wait as long as needed for a WRQ packet */
@@ -211,7 +211,7 @@ static void tftp_task(void *listen_port)
 		/* check filename */
 		char *filename = tftp_get_field(0, netbuf);
 		if (!filename || strcmp(filename, TFTP_FIRMWARE_FILE)) {
-			tftp_send_error(nc, TFTP_ERR_FILENOTFOUND, "File must be firmware.bin");
+			tftp_send_error(nc, TFTP_ERR_FILENOTFOUND, "File must be " TFTP_FIRMWARE_FILE);
 			free(filename);
 			netbuf_delete(netbuf);
 			continue;

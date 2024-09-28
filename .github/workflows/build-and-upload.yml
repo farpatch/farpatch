@@ -55,8 +55,8 @@ jobs:
         cd farpatch
         idf.py set-target esp32
         idf.py build
-        cp build/blackmagic.bin                       ../artifacts/esp32/blackmagic.bin
-        cp build/blackmagic.elf                       ../artifacts/esp32/blackmagic.elf
+        cp build/farpatch.bin                         ../artifacts/esp32/farpatch.bin
+        cp build/farpatch.elf                         ../artifacts/esp32/farpatch.elf
         cp build/bootloader/bootloader.bin            ../artifacts/esp32/bootloader.bin
         cp build/partition_table/partition-table.bin  ../artifacts/esp32/partition-table.bin
         cp build/ota_data_initial.bin                 ../artifacts/esp32/ota_data_initial.bin
@@ -67,8 +67,8 @@ jobs:
         cd farpatch
         idf.py set-target esp32s3
         idf.py build
-        cp build/blackmagic.bin                       ../artifacts/esp32s3/blackmagic.bin
-        cp build/blackmagic.elf                       ../artifacts/esp32s3/blackmagic.elf
+        cp build/farpatch.bin                         ../artifacts/esp32s3/farpatch.bin
+        cp build/farpatch.elf                         ../artifacts/esp32s3/farpatch.elf
         cp build/bootloader/bootloader.bin            ../artifacts/esp32s3/bootloader.bin
         cp build/partition_table/partition-table.bin  ../artifacts/esp32s3/partition-table.bin
         cp build/ota_data_initial.bin                 ../artifacts/esp32s3/ota_data_initial.bin
@@ -79,8 +79,8 @@ jobs:
         cd farpatch
         idf.py set-target esp32c3
         idf.py build
-        cp build/blackmagic.bin                       ../artifacts/esp32c3/blackmagic.bin
-        cp build/blackmagic.elf                       ../artifacts/esp32c3/blackmagic.elf
+        cp build/farpatch.bin                         ../artifacts/esp32c3/farpatch.bin
+        cp build/farpatch.elf                         ../artifacts/esp32c3/farpatch.elf
         cp build/bootloader/bootloader.bin            ../artifacts/esp32c3/bootloader.bin
         cp build/partition_table/partition-table.bin  ../artifacts/esp32c3/partition-table.bin
         cp build/ota_data_initial.bin                 ../artifacts/esp32c3/ota_data_initial.bin

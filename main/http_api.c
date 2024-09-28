@@ -245,7 +245,7 @@ static void append_networking_to_output(httpd_req_t *req)
 		"\"rtt-udp\": %d,"
 		"\"uart-tcp\": %d,"
 		"\"uart-udp\": %d,"
-		"\"tftp\": \"firmware.bin\""
+		"\"tftp\": \"farpatch.bin\""
 		"}",
 		generated_hostname, ip, netmask, gw, wilma_current_ssid(), CONFIG_GDB_TCP_PORT, CONFIG_RTT_TCP_PORT, CONFIG_RTT_MAX_CHANNELS,
 		CONFIG_RTT_UDP_PORT, CONFIG_UART_TCP_PORT, CONFIG_UART_UDP_PORT);
