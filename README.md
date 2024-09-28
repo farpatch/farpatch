@@ -162,7 +162,7 @@ python -mvenv .
 .\Scripts\activate.ps1 # Powershell
 .\Scripts\activate.bat % cmd.exe
 pip install esptool
-esptool.py -p (PORT) -b 460800 --before default_reset --after hard_reset --chip esp32s3  write_flash --flash_mode dio --flash_size detect --flash_freq 80m 0x0 build\bootloader\bootloader.bin 0x8000 build\partition_table\partition-table.bin 0xd000 build\ota_data_initial.bin 0x10000 build\blackmagic.bin
+esptool.py -p (PORT) -b 460800 --before default_reset --after hard_reset --chip esp32s3  write_flash --flash_mode dio --flash_size detect --flash_freq 80m 0x0 build\bootloader\bootloader.bin 0x8000 build\partition_table\partition-table.bin 0xd000 build\ota_data_initial.bin 0x10000 build\farpatch.bin
 ```
 
 ## OTA Flashing
@@ -170,18 +170,17 @@ esptool.py -p (PORT) -b 460800 --before default_reset --after hard_reset --chip 
 If the firmware is already on the device, it is possible to flash using tftp. Make sure you have tftp-hpa package installed then run:
 
 ```bash
-tftp -v -m octet $FARPATCH_IP -c put build/blackmagic.bin firmware.bin
+tftp -v -m octet $FARPATCH_IP -c put build/farpatch.bin
 ```
 
-Please note that `firmware.bin` is required, and tells the target that you're uploading a file
-called 'firmware.bin'.
+Please note that the file must be named `farpatch.bin`.
 
 ## Web Flashing
 
 There is an experimental web interface available to flashing new updates.
 
 1. Go to `http://10.10.0.1/#settings`
-2. Select `blackmagic.bin` as the firmware file
+2. Select `farpatch.bin` as the firmware file
 3. Click `Update!`
 
 # Connecting to the Device
