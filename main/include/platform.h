@@ -163,11 +163,12 @@ void platform_set_baud(uint32_t baud);
 #define GPIO_OUTPUT GPIO_MODE_OUTPUT
 
 #define PLATFORM_HAS_DEBUG
-#define PLATFORM_IDENT "esp32"
+#define PLATFORM_IDENT CONFIG_IDF_TARGET
 
 #define PLATFORM_HAS_TRACESWO
 #define NUM_TRACE_PACKETS (128) /* This is an 8K buffer */
-#define TRACESWO_PROTOCOL 2     /* 1 = Manchester, 2 = NRZ / async */
+#define SWO_ENCODING 2     /* 1 = Manchester, 2 = NRZ / async, 3 = Both */
+#define SWO_ENDPOINT 0U /* Dummy value -- not used */
 
 extern uint32_t swd_delay_cnt;
 

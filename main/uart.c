@@ -203,6 +203,8 @@ static void uart_config(void)
 	};
 	ESP_ERROR_CHECK(uart_driver_install(TARGET_UART_IDX, 4096, 256, 16, &uart_event_queue, ESP_INTR_FLAG_IRAM));
 	ESP_ERROR_CHECK(uart_param_config(TARGET_UART_IDX, &uart_config));
+	// Without this delay, the device locks up. It's unclear why this is.
+	vTaskDelay(pdMS_TO_TICKS(100));
 	ESP_ERROR_CHECK(uart_set_pin(
 		TARGET_UART_IDX, CONFIG_UART_TX_GPIO, CONFIG_UART_RX_GPIO, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
 
@@ -289,6 +291,6 @@ void uart_init(void)
 
 	// Start UART tasks
 	xTaskCreate(uart_hw_task, "uart_hw_task", 3072, NULL, 1, NULL);
-	xTaskCreate(uart_net_task, "uart_net_task", 6 * 1024, NULL, 1, NULL);
+	xTaskCreate(uart_net_task, "uart_net_task", 3072, NULL, 1, NULL);
 #endif
 }

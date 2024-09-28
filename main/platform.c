@@ -68,7 +68,12 @@
 
 #define TAG "farpatch"
 
-nvs_handle h_nvs_conf;
+nvs_handle_t h_nvs_conf;
+
+// This value is used to spread out service startup,
+// which curiously seems to work around some bugs in
+// ESP-IDF.
+const uint32_t STARTUP_SERVICE_DELAY_MS = 10;
 
 static uint32_t frequency;
 #if defined(CONFIG_VSEL_PRESENT)
@@ -480,49 +485,60 @@ void app_main(void)
 
 	ESP_ERROR_CHECK(nvs_open("config", NVS_READWRITE, &h_nvs_conf));
 
-	// TODO: ADC task is currently broken. It corrupts something in RAM which
-	// manifests itself as a problem with NVS.
-	// xTaskCreate(adc_task, "adc", 1024, NULL, 10, NULL);
+	ESP_LOGI(TAG, "starting adc");
+	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));
+	xTaskCreate(adc_task, "adc", 1024, NULL, 10, NULL);
 
 	ESP_LOGI(TAG, "starting WiLma wifi manager");
+	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));
 	wilma_start();
-	ESP_LOGI(TAG, "starting web server");
 
-	// There needs to be a small delay after the wifi manager starts in order to
-	// ensure networking is running.
-	vTaskDelay(pdMS_TO_TICKS(200));
+	ESP_LOGI(TAG, "starting web server");
+	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));
 	webserver_start();
 
 	ESP_LOGI(TAG, "starting mdns broadcaster");
+	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));
 	initialise_mdns(NULL);
 
 	ESP_LOGI(TAG, "initializing platform");
+	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));
 	platform_init();
 
+	ESP_LOGI(TAG, "starting uart monitor");
+	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));
 	uart_init();
+
+	ESP_LOGI(TAG, "starting rtt receiver for tcp");
+	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));
 	rtt_init();
 
+	ESP_LOGI(TAG, "starting gdb server");
+	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));
 	xTaskCreate(gdb_net_task, "gdb_net", 2000, NULL, 1, NULL);
 
 	ESP_LOGI(TAG, "starting tftp server");
+	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));
 	ota_tftp_init_server(69, 4);
 
 #ifdef CONFIG_RESET_TARGET_ON_BOOT
 	ESP_LOGI(TAG, "resetting target on boot");
 	platform_nrst_set_val(true);
-	vTaskDelay(pdMS_TO_TICKS(100));
+	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));
 	platform_nrst_set_val(false);
 #endif /* CONFIG_RESET_TARGET_ON_BOOT */
 
 #ifdef CONFIG_RTT_ON_BOOT
+	ESP_LOGI(TAG, "starting rtt monitor thread");
+	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));
 	xTaskCreate(rtt_monitor_task, "rtt_monitor", 3000, NULL, tskIDLE_PRIORITY + 1, NULL);
 #endif /* CONFIG_RTT_ON_BOOT */
 
 	ESP_LOGI(__func__, "Free heap %" PRId32, esp_get_free_heap_size());
 
-	// Wait two seconds for the system to stabilize before confirming the
+	// Wait a few seconds for the system to stabilize before confirming the
 	// new firmware image works. This gives us time to ensure the new
 	// environment works well.
-	vTaskDelay(pdMS_TO_TICKS(2000));
+	vTaskDelay(pdMS_TO_TICKS(5000));
 	esp_ota_mark_app_valid_cancel_rollback();
 }

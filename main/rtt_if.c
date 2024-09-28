@@ -13,10 +13,11 @@
 #include "sdkconfig.h"
 
 static struct sockaddr_in udp_peer_addr;
-static int tcp_serv_sock = 0;
+static int tcp_serv_sock[CONFIG_RTT_MAX_CHANNELS] = {};
 static int udp_serv_sock = 0;
 
 static int tcp_client_sock[CONFIG_RTT_MAX_CONNECTIONS] = {};
+static int tcp_client_channel[CONFIG_RTT_MAX_CONNECTIONS] = {};
 
 static bool rtt_initialized;
 const static char http_content_type_json[] = "application/json";
@@ -51,14 +52,18 @@ int rtt_if_exit(void)
 }
 
 /* target to host: write len bytes from the buffer starting at buf. return number bytes written */
-uint32_t rtt_write(const char *buf, uint32_t len)
+uint32_t rtt_write(const uint32_t channel, const char *buf, uint32_t len)
 {
 	int ret;
 	int index;
-	http_term_broadcast_rtt((uint8_t *)buf, len);
+
+	// Only support channel 0 for http for now
+	if (channel == 0) {
+		http_term_broadcast_rtt((uint8_t *)buf, len);
+	}
 
 	for (index = 0; index < CONFIG_RTT_MAX_CONNECTIONS; index += 1) {
-		if (tcp_client_sock[index]) {
+		if ((tcp_client_sock[index] != 0) && (tcp_client_channel[index] == channel)) {
 			ret = send(tcp_client_sock[index], buf, len, 0);
 			if (ret < 0) {
 				ESP_LOGE(__func__, "tcp send() failed (%s)", strerror(errno));
@@ -68,7 +73,7 @@ uint32_t rtt_write(const char *buf, uint32_t len)
 		}
 	}
 
-	if (udp_peer_addr.sin_addr.s_addr) {
+	if ((channel == 0) && (udp_peer_addr.sin_addr.s_addr != 0)) {
 		ret = sendto(udp_serv_sock, buf, len, MSG_DONTWAIT, (struct sockaddr *)&udp_peer_addr, sizeof(udp_peer_addr));
 		if (ret < 0) {
 			ESP_LOGE(__func__, "udp send() failed (%s)", strerror(errno));
@@ -80,8 +85,9 @@ uint32_t rtt_write(const char *buf, uint32_t len)
 }
 
 /* host to target: read one character, non-blocking. return character, -1 if no character */
-int32_t rtt_getchar(void)
+int32_t rtt_getchar(const uint32_t channel)
 {
+	(void)channel;
 	if (CBUF_IsEmpty(rtt_msg_queue)) {
 		return -1;
 	}
@@ -89,13 +95,18 @@ int32_t rtt_getchar(void)
 }
 
 /* host to target: true if no characters available for reading */
-bool rtt_nodata(void)
+bool rtt_nodata(const uint32_t channel)
 {
+	(void)channel;
 	return CBUF_IsEmpty(rtt_msg_queue);
 }
 
-void IRAM_ATTR rtt_append_data(const uint8_t *data, int len)
+void IRAM_ATTR rtt_append_data(const uint32_t channel, const uint8_t *data, int len)
 {
+	// Only support down buffer for channel 0 for now
+	if (channel != 0U) {
+		return;
+	}
 	while ((len-- > 0) && !CBUF_IsFull(rtt_msg_queue)) {
 		CBUF_Push(rtt_msg_queue, *data++);
 	}
@@ -192,6 +203,44 @@ esp_err_t cgi_rtt_status(httpd_req_t *req)
 	return ESP_OK;
 }
 
+static bool accept_tcp(int sock, int channel)
+{
+	int new_sock_index = -1;
+	int index;
+
+	for (index = 0; index < CONFIG_RTT_MAX_CONNECTIONS; index += 1) {
+		if (tcp_client_sock[index] == 0) {
+			new_sock_index = index;
+			break;
+		}
+	}
+	if (new_sock_index == -1) {
+		ESP_LOGE(__func__, "no free tcp client sockets");
+		close(accept(sock, 0, 0));
+		return false;
+	}
+	tcp_client_sock[new_sock_index] = accept(sock, 0, 0);
+	if (tcp_client_sock[new_sock_index] < 0) {
+		ESP_LOGE(__func__, "accept() failed (%s)", strerror(errno));
+		tcp_client_sock[new_sock_index] = 0;
+		return false;
+	}
+	ESP_LOGI(__func__, "accepted tcp connection for channel %d", channel);
+	tcp_client_channel[new_sock_index] = channel;
+
+	int opt = 1; /* SO_KEEPALIVE */
+	setsockopt(tcp_client_sock[new_sock_index], SOL_SOCKET, SO_KEEPALIVE, (void *)&opt, sizeof(opt));
+	opt = 3; /* s TCP_KEEPIDLE */
+	setsockopt(tcp_client_sock[new_sock_index], IPPROTO_TCP, TCP_KEEPIDLE, (void *)&opt, sizeof(opt));
+	opt = 1; /* s TCP_KEEPINTVL */
+	setsockopt(tcp_client_sock[new_sock_index], IPPROTO_TCP, TCP_KEEPINTVL, (void *)&opt, sizeof(opt));
+	opt = 3; /* TCP_KEEPCNT */
+	setsockopt(tcp_client_sock[new_sock_index], IPPROTO_TCP, TCP_KEEPCNT, (void *)&opt, sizeof(opt));
+	opt = 1;
+	setsockopt(tcp_client_sock[new_sock_index], IPPROTO_TCP, TCP_NODELAY, (void *)&opt, sizeof(opt));
+	return true;
+}
+
 static void net_rtt_task(void *params)
 {
 	int ret;
@@ -199,9 +248,10 @@ static void net_rtt_task(void *params)
 	uint8_t buf[1024];
 	struct sockaddr_in saddr;
 
-	tcp_serv_sock = socket(AF_INET, SOCK_STREAM, 0);
+	for (index = 0; index < CONFIG_RTT_MAX_CHANNELS; index += 1) {
+		tcp_serv_sock[index] = socket(AF_INET, SOCK_STREAM, 0);
+	}
 	udp_serv_sock = socket(AF_INET, SOCK_DGRAM, 0);
-	memset(tcp_client_sock, 0, sizeof(tcp_client_sock));
 
 	if ((CONFIG_RTT_TCP_PORT < 0) && (CONFIG_RTT_UDP_PORT < 0)) {
 		ESP_LOGI(__func__, "RTT network support is disabled in the configuration");
@@ -210,10 +260,16 @@ static void net_rtt_task(void *params)
 
 	if (CONFIG_RTT_TCP_PORT >= 0) {
 		saddr.sin_addr.s_addr = 0;
-		saddr.sin_port = ntohs(CONFIG_RTT_TCP_PORT);
 		saddr.sin_family = AF_INET;
-		bind(tcp_serv_sock, (struct sockaddr *)&saddr, sizeof(saddr));
-		listen(tcp_serv_sock, 1);
+
+		for (index = 0; index < CONFIG_RTT_MAX_CHANNELS; index += 1) {
+			saddr.sin_port = ntohs(CONFIG_RTT_TCP_PORT + index);
+			bind(tcp_serv_sock[index], (struct sockaddr *)&saddr, sizeof(saddr));
+			listen(tcp_serv_sock[index], 1);
+		}
+
+		memset(tcp_client_sock, 0, sizeof(tcp_client_sock));
+		memset(tcp_client_channel, 0, sizeof(tcp_client_channel));
 	}
 
 	if (CONFIG_RTT_UDP_PORT >= 0) {
@@ -234,8 +290,10 @@ static void net_rtt_task(void *params)
 		int maxfd = 0;
 
 		if (CONFIG_RTT_TCP_PORT >= 0) {
-			FD_SET(tcp_serv_sock, &fds);
-			maxfd = MAX(maxfd, tcp_serv_sock);
+			for (index = 0; index < CONFIG_RTT_MAX_CHANNELS; index += 1) {
+				FD_SET(tcp_serv_sock[index], &fds);
+				maxfd = MAX(maxfd, tcp_serv_sock[index]);
+			}
 		}
 
 		if (CONFIG_RTT_UDP_PORT >= 0) {
@@ -251,46 +309,21 @@ static void net_rtt_task(void *params)
 		}
 
 		if ((ret = select(maxfd + 1, &fds, NULL, NULL, &tv) > 0)) {
-			if (FD_ISSET(tcp_serv_sock, &fds)) {
-				int new_sock_index = -1;
-				for (index = 0; index < CONFIG_RTT_MAX_CONNECTIONS; index += 1) {
-					if (tcp_client_sock[index] == 0) {
-						new_sock_index = index;
-						break;
+			for (index = 0; index < CONFIG_RTT_MAX_CHANNELS; index += 1) {
+				if (FD_ISSET(tcp_serv_sock[index], &fds)) {
+					if (!accept_tcp(tcp_serv_sock[index], index)) {
+						continue;
 					}
 				}
-				if (new_sock_index == -1) {
-					ESP_LOGE(__func__, "no free tcp client sockets");
-					close(accept(tcp_serv_sock, 0, 0));
-					continue;
-				}
-				tcp_client_sock[new_sock_index] = accept(tcp_serv_sock, 0, 0);
-				if (tcp_client_sock[new_sock_index] < 0) {
-					ESP_LOGE(__func__, "accept() failed");
-					tcp_client_sock[new_sock_index] = 0;
-					continue;
-				}
-				ESP_LOGI(__func__, "accepted tcp connection");
-
-				int opt = 1; /* SO_KEEPALIVE */
-				setsockopt(tcp_client_sock[new_sock_index], SOL_SOCKET, SO_KEEPALIVE, (void *)&opt, sizeof(opt));
-				opt = 3; /* s TCP_KEEPIDLE */
-				setsockopt(tcp_client_sock[new_sock_index], IPPROTO_TCP, TCP_KEEPIDLE, (void *)&opt, sizeof(opt));
-				opt = 1; /* s TCP_KEEPINTVL */
-				setsockopt(tcp_client_sock[new_sock_index], IPPROTO_TCP, TCP_KEEPINTVL, (void *)&opt, sizeof(opt));
-				opt = 3; /* TCP_KEEPCNT */
-				setsockopt(tcp_client_sock[new_sock_index], IPPROTO_TCP, TCP_KEEPCNT, (void *)&opt, sizeof(opt));
-				opt = 1;
-				setsockopt(tcp_client_sock[new_sock_index], IPPROTO_TCP, TCP_NODELAY, (void *)&opt, sizeof(opt));
 			}
 
 			if (FD_ISSET(udp_serv_sock, &fds)) {
 				socklen_t slen = sizeof(udp_peer_addr);
 				ret = recvfrom(udp_serv_sock, buf, sizeof(buf), 0, (struct sockaddr *)&udp_peer_addr, &slen);
 				if (ret > 0) {
-					rtt_append_data(buf, ret);
+					rtt_append_data(0, buf, ret);
 				} else {
-					ESP_LOGE(__func__, "udp recvfrom() failed");
+					ESP_LOGE(__func__, "udp recvfrom() failed (%s)", strerror(errno));
 				}
 			}
 
@@ -298,11 +331,12 @@ static void net_rtt_task(void *params)
 				if (tcp_client_sock[index] && FD_ISSET(tcp_client_sock[index], &fds)) {
 					ret = recv(tcp_client_sock[index], buf, sizeof(buf), MSG_DONTWAIT);
 					if (ret > 0) {
-						rtt_append_data(buf, ret);
+						rtt_append_data(tcp_client_channel[index], buf, ret);
 					} else {
 						ESP_LOGE(__func__, "tcp client recv() failed (%s)", strerror(errno));
 						close(tcp_client_sock[index]);
 						tcp_client_sock[index] = 0;
+						tcp_client_channel[index] = 0;
 					}
 				}
 			}

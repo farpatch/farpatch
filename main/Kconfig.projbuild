@@ -233,4 +233,23 @@ menu "Farpatch Configuration"
         default 1
         help
         The maximum number of RTT clients that can be connected at one time.
+
+    config RTT_MAX_CHANNELS
+        int "Largest supported RTT channel"
+        default 1
+        help
+        A variable number of TCP ports will be opened to support this many channels.
+
+    config CATCH_CORE_RESET
+        bool "Catch target reset events"
+        default y
+        help
+        Break into the debugger when the target resets.
+
+    config CATCH_CORE_HARDFAULT
+        bool "Catch target hardfault events"
+        default y
+        help
+        Break into the debugger when the target experiences a hardfault.
+
 endmenu

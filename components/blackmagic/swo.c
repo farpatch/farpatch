@@ -28,7 +28,7 @@
  */
 
 #include "general.h"
-#include "traceswo.h"
+#include "swo.h"
 // #include <esp32/clk.h>
 #include <esp_log.h>
 #include <esp_task_wdt.h>
@@ -248,7 +248,7 @@ int swo_active = 0;
 // 	vTaskDelete(NULL);
 // }
 
-void traceswo_deinit(void)
+void swo_deinit(bool deallocate)
 {
 	// swo_active = 0;
 	// if (rx_pid) {
@@ -261,7 +261,7 @@ void traceswo_deinit(void)
 	// 	}
 	// }
 }
-void traceswo_init(uint32_t baudrate, uint32_t swo_chan_bitmask)
+void swo_init(swo_coding_e swo_mode, uint32_t baudrate, uint32_t itm_stream_bitmask)
 {
 	// if (!rx_pid) {
 	// 	ESP_LOGI(TAG, "initializing traceswo");
@@ -273,17 +273,4 @@ void traceswo_init(uint32_t baudrate, uint32_t swo_chan_bitmask)
 	// 	traceswo_baud(baudrate);
 	// }
 	// swo_active = 1;
-}
-
-void traceswo_baud(unsigned int baud)
-{
-	// uart_event_t msg;
-	// msg.type = 0x1000;
-	// msg.size = baud;
-	// xQueueSend(uart_event_queue, &msg, portMAX_DELAY);
-}
-
-uint32_t traceswo_get_baudrate(void)
-{
-	return 115200;//uart_get_baudrate(TRACEUART);
 }
