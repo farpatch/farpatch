@@ -21,6 +21,8 @@ const static char http_cache_control_hdr[] = "Cache-Control";
 const static char http_cache_control_no_cache[] = "no-store, no-cache, must-revalidate, max-age=0";
 const static char http_pragma_hdr[] = "Pragma";
 const static char http_pragma_no_cache[] = "no-cache";
+const static char http_connection_hdr[] = "Connection";
+const static char http_connection_close[] = "Close";
 
 static const char *ESP_RESET_REASONS[] = {
 	"ESP_RST_UNKNOWN",
@@ -65,6 +67,7 @@ static esp_err_t http_resp_empty_json(httpd_req_t *req)
 	httpd_resp_set_type(req, http_content_type_json);
 	httpd_resp_set_hdr(req, http_cache_control_hdr, http_cache_control_no_cache);
 	httpd_resp_set_hdr(req, http_pragma_hdr, http_pragma_no_cache);
+	httpd_resp_set_hdr(req, http_connection_hdr, http_connection_close);
 	httpd_resp_send(req, "{}", 2);
 
 	return ESP_OK;
@@ -381,6 +384,7 @@ esp_err_t cgi_status(httpd_req_t *req)
 	httpd_resp_set_type(req, http_content_type_json);
 	httpd_resp_set_hdr(req, http_cache_control_hdr, http_cache_control_no_cache);
 	httpd_resp_set_hdr(req, http_pragma_hdr, http_pragma_no_cache);
+	httpd_resp_set_hdr(req, http_connection_hdr, http_connection_close);
 
 	httpd_resp_sendstr_chunk(req, "{\"status\":\"ok\"");
 	append_version_to_output(req);

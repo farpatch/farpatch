@@ -243,12 +243,11 @@ static void IRAM_ATTR uart_hw_task(void *parameters)
 
 			count = uart_read_bytes(TARGET_UART_IDX, &buf, sizeof(buf), 0);
 			if (count <= 0) {
-				// ESP_LOGE(__func__, "uart gave us 0 bytes");
 				continue;
 			}
 
 			uart_rx_count += count;
-			http_term_broadcast_data(buf, count);
+			http_term_broadcast_uart(buf, count);
 
 			if (tcp_client_sock) {
 				ret = send(tcp_client_sock, buf, count, 0);

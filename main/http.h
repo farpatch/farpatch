@@ -11,7 +11,7 @@
 #include <esp_http_server.h>
 
 /* send data to connected terminal websockets */
-void http_term_broadcast_data(uint8_t *data, size_t len);
+void http_term_broadcast_uart(uint8_t *data, size_t len);
 void http_debug_putc(uint8_t c, int flush);
 void http_term_broadcast_rtt(uint8_t *data, size_t len);
 

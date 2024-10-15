@@ -224,7 +224,7 @@ int swo_active = 0;
 // 				}
 // 				ESP_LOGI(TAG, "uart has rx %d bytes: %s", bufpos, logstr);
 // 				// uart_rx_count += bufpos;
-// 				// http_term_broadcast_data(buf, bufpos);
+// 				// http_term_broadcast_uart(buf, bufpos);
 
 // 				bufpos = 0;
 // 			} // if(bufpos)
