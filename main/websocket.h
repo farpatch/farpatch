@@ -6,7 +6,7 @@
 esp_err_t cgi_websocket(httpd_req_t *req);
 void http_debug_putc(uint8_t c, int flush);
 void http_term_broadcast_rtt(uint8_t *data, size_t len);
-void http_term_broadcast_data(uint8_t *data, size_t len);
+void http_term_broadcast_uart(uint8_t *data, size_t len);
 
 struct websocket_config;
 extern const struct websocket_config debug_websocket;

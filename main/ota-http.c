@@ -15,7 +15,7 @@ static size_t remaining;
 
 esp_err_t cgi_flash_init(httpd_req_t *req)
 {
-	const char msg[] = "blackmagic.bin";
+	const char msg[] = "farpatch.bin";
 	httpd_resp_send(req, msg, sizeof(msg) - 1);
 	return ESP_OK;
 }

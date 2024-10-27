@@ -21,7 +21,7 @@ typedef void (*tftp_receive_cb)(size_t bytes_received);
  * support OTA itself, and possibly brick the esp requiring serial upload.
  *
  * Example client comment:
- * tftp -m octet ESP_IP -c put firmware/myprogram.bin firmware.bin
+ * tftp -m octet ESP_IP -c put firmware/myprogram.bin farpatch.bin
  *
  * TFTP protocol implemented as per RFC1350:
  * https://tools.ietf.org/html/rfc1350

@@ -170,7 +170,7 @@ esptool.py -p (PORT) -b 460800 --before default_reset --after hard_reset --chip 
 If the firmware is already on the device, it is possible to flash using tftp. Make sure you have tftp-hpa package installed then run:
 
 ```bash
-tftp -v -m octet $FARPATCH_IP -c put build/farpatch.bin
+tftp -v -m octet $FARPATCH_IP -c put build/farpatch.bin farpatch.bin
 ```
 
 Please note that the file must be named `farpatch.bin`.

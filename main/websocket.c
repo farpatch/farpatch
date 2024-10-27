@@ -6,6 +6,12 @@
 
 #include <esp_log.h>
 
+// The Websocket API doesn't provide any way to generate control packets, including
+// PING packets. To work around this, define our own concept of commands rather than
+// treating everything as a stream of data.
+#define PKT_DATA 0
+#define PKT_PING 1
+
 struct websocket_session {
 	int fd;
 	uint32_t cookie;
@@ -57,23 +63,40 @@ const struct websocket_config rtt_websocket = {
 };
 
 static void websocket_broadcast(
-	httpd_handle_t hd, struct websocket_session *handles, int handle_max, uint8_t *buffer, size_t count)
+	httpd_handle_t hd, struct websocket_session *handles, int handle_max, const uint8_t *buffer, size_t count)
 {
-	if (hd == NULL) {
+	if ((hd == NULL) || (handles == NULL) || (handle_max == 0) || (buffer == NULL) || (count == 0)) {
 		return;
 	}
-	httpd_ws_frame_t ws_pkt;
-	memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
 
+	static const char pkt_data[] = {PKT_DATA};
+	static const httpd_ws_frame_t ws_pkt_type = {
+		.type = HTTPD_WS_TYPE_BINARY,
+		.len = sizeof(pkt_data),
+		.payload = (void *)pkt_data,
+		.fragmented = true,
+		.final = false,
+	};
+	const httpd_ws_frame_t ws_pkt_payload = {
+		.type = HTTPD_WS_TYPE_CONTINUE,
+		.payload = (void *)buffer,
+		.len = count,
+		.fragmented = true,
+		.final = true,
+	};
+	int ret;
 	int i;
+
 	for (i = 0; i < handle_max; i++) {
 		if (handles[i].fd == 0) {
 			continue;
 		}
-		ws_pkt.payload = buffer;
-		ws_pkt.len = count;
-		ws_pkt.type = HTTPD_WS_TYPE_BINARY;
-		int ret = httpd_ws_send_frame_async(hd, handles[i].fd, &ws_pkt);
+		ret = httpd_ws_send_frame_async(hd, handles[i].fd, (httpd_ws_frame_t *)&ws_pkt_type);
+		if (ret != ESP_OK) {
+			ESP_LOGE(__func__, "sockfd %d (index %d) is invalid! connection closed?", handles[i].fd, i);
+			handles[i].fd = 0;
+		}
+		ret = httpd_ws_send_frame_async(hd, handles[i].fd, (httpd_ws_frame_t *)&ws_pkt_payload);
 		if (ret != ESP_OK) {
 			ESP_LOGE(__func__, "sockfd %d (index %d) is invalid! connection closed?", handles[i].fd, i);
 			handles[i].fd = 0;
@@ -81,7 +104,7 @@ static void websocket_broadcast(
 	}
 }
 
-void http_term_broadcast_data(uint8_t *data, size_t len)
+void http_term_broadcast_uart(uint8_t *data, size_t len)
 {
 	websocket_broadcast(http_daemon, uart_handles, sizeof(uart_handles) / sizeof(uart_handles[0]), data, len);
 }
@@ -109,6 +132,62 @@ static void cgi_websocket_close(void *ctx)
 	*fd = 0;
 }
 
+// `ws_pkt` has already had its `len` field filled in by the caller, and it's
+// defined to be non-zero.
+static esp_err_t dispatch_websocket_data(httpd_req_t *req, httpd_ws_frame_t ws_pkt)
+{
+	struct websocket_config *cfg = req->user_ctx;
+	esp_err_t ret = ESP_OK;
+	uint8_t *buffer = NULL;
+	uint8_t stack_buffer[256];
+
+	if (ws_pkt.len < sizeof(stack_buffer)) {
+		ws_pkt.payload = stack_buffer;
+	} else {
+		buffer = malloc(ws_pkt.len);
+		ws_pkt.payload = buffer;
+	}
+
+	ret = httpd_ws_recv_frame(req, &ws_pkt, ws_pkt.len);
+	if (ret != ESP_OK) {
+		ESP_LOGE(__func__, "httpd_ws_recv_frame frame unable to receive data: %d", ret);
+		goto out;
+	}
+
+	switch (ws_pkt.payload[0]) {
+	case PKT_PING:
+		httpd_ws_frame_t pong_pkt;
+		memset(&pong_pkt, 0, sizeof(httpd_ws_frame_t));
+		pong_pkt.type = HTTPD_WS_TYPE_BINARY;
+		// Just copy the ping packet back to the sender. The opcode will be the same,
+		// so we don't need to strip the first byte.
+		pong_pkt.payload = ws_pkt.payload;
+		pong_pkt.len = ws_pkt.len;
+		ret = httpd_ws_send_frame(req, &pong_pkt);
+		if (ret != ESP_OK) {
+			ESP_LOGE(__func__, "httpd_ws_send_frame failed to send pong: %d", ret);
+		}
+		break;
+	case PKT_DATA:
+		if (cfg->recv_cb) {
+			cfg->recv_cb(http_daemon, req, ws_pkt.payload + 1, ws_pkt.len - 1);
+		} else {
+			ESP_LOGE(__func__, "receive function was NULL");
+		}
+		break;
+	default:
+		ESP_LOGE(__func__, "unknown packet type %d", ws_pkt.payload[0]);
+		break;
+	}
+
+out:
+	if (buffer) {
+		free(buffer);
+	}
+
+	return ret;
+}
+
 esp_err_t cgi_websocket(httpd_req_t *req)
 {
 	esp_err_t ret;
@@ -118,14 +197,6 @@ esp_err_t cgi_websocket(httpd_req_t *req)
 	if (req->method == HTTP_GET) {
 		int sockfd = httpd_req_to_sockfd(req);
 		int opt;
-
-		// Time out websockets after 30 seconds
-		opt = 10;
-		assert(setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPIDLE, (void *)&opt, sizeof(opt)) != -1);
-		opt = 5;
-		assert(setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPINTVL, (void *)&opt, sizeof(opt)) != -1);
-		opt = 4;
-		assert(setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPCNT, (void *)&opt, sizeof(opt)) != -1);
 
 		// Enable reusing this socket
 		opt = 1;
@@ -161,7 +232,6 @@ esp_err_t cgi_websocket(httpd_req_t *req)
 		return ESP_OK;
 	}
 
-	// TODO: Add a cookie header here
 	memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
 	ws_pkt.type = HTTPD_WS_TYPE_BINARY;
 	ret = httpd_ws_recv_frame(req, &ws_pkt, 0);
@@ -170,42 +240,10 @@ esp_err_t cgi_websocket(httpd_req_t *req)
 		return ret;
 	}
 
-	// Keepalive packets are zero bytes
+	// There's nothing to do if the packet was empty
 	if (ws_pkt.len <= 0) {
-		// ESP_LOGE(__func__, "httpd_ws_recv_frame frame was zero bytes");
 		return ESP_OK;
 	}
 
-	uint8_t *buffer = NULL;
-	uint8_t stack_buffer[256];
-	if (ws_pkt.len < sizeof(stack_buffer)) {
-		ws_pkt.payload = stack_buffer;
-	} else {
-		buffer = malloc(ws_pkt.len);
-		ws_pkt.payload = buffer;
-	}
-	ret = httpd_ws_recv_frame(req, &ws_pkt, ws_pkt.len);
-	if (ret != ESP_OK) {
-		ESP_LOGE(__func__, "httpd_ws_recv_frame frame unable to receive data: %d", ret);
-		if (buffer) {
-			free(buffer);
-		}
-		return ret;
-	}
-
-	// ESP_LOGI(__func__, "Packet type: %d", ws_pkt.type);
-
-	void (*recv_func)(httpd_handle_t handle, httpd_req_t * req, uint8_t * data, int len) = cfg->recv_cb;
-	if (recv_func) {
-		// ESP_LOGI(__func__, "going to call rect_func at %p", recv_func);
-		recv_func(http_daemon, req, ws_pkt.payload, ws_pkt.len);
-	} else {
-		ESP_LOGE(__func__, "receive function was NULL");
-	}
-
-	if (buffer) {
-		free(buffer);
-	}
-
-	return ESP_OK;
+	return dispatch_websocket_data(req, ws_pkt);
 }
