@@ -245,8 +245,8 @@ void bmp_core_unlock();
 #define CONFIG_LED2_GPIO          9
 #define CONFIG_TCK_TDI_DIR_GPIO   11
 #define CONFIG_UART_TX_DIR_GPIO   37
-#define CONFIG_UART_TX_GPIO       26
-#define CONFIG_UART_RX_GPIO       17
+#define CONFIG_UART_TX_GPIO       48
+#define CONFIG_UART_RX_GPIO       10
 #define CONFIG_VREF_ADC_GPIO      8
 #define CONFIG_VREF_ADC_UNIT      ADC_UNIT_1
 #define CONFIG_VREF_ADC_CHANNEL   ADC_CHANNEL_7
@@ -263,10 +263,6 @@ void bmp_core_unlock();
 #define CONFIG_RESET_SENSE_GPIO 7
 
 #define CONFIG_VTARGET_EN_GPIO 33
-
-#define CONFIG_UUART_PRESENT 1
-#define CONFIG_UUART_TX_GPIO 48
-#define CONFIG_UUART_RX_GPIO 10
 
 #elif defined(CONFIG_FARPATCH_DVT6)
 #define CONFIG_TDI_GPIO           11

@@ -274,7 +274,7 @@ static void jtagtap_tdi_seq_no_delay(const uint8_t *const data_in, const bool fi
 		CLK_LOW();
 		/* On the last tick, assert final_tms to TMS_PIN */
 		/* Set up the TDI pin and start the clock cycle */
-		SET_TMS(tms, !!tdi);
+		SET_TMS_TDI(tms, !!tdi);
 		/* Block the compiler from re-ordering the calculations to preserve timings */
 		__asm__ volatile("" ::: "memory");
 		/* Increment the cycle counter */
