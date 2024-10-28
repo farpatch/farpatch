@@ -150,6 +150,7 @@ static void jtagtap_tms_seq_no_delay(uint32_t tms_states, const size_t clock_cyc
 
 static void jtagtap_tms_seq(const uint32_t tms_states, const size_t ticks)
 {
+	platform_maybe_delay();
 	SET_TDI(1);
 	if (target_delay_us)
 		jtagtap_tms_seq_clk_delay(tms_states, ticks);
@@ -237,6 +238,7 @@ static void jtagtap_tdi_tdo_seq_no_delay(
 static void jtagtap_tdi_tdo_seq(
 	uint8_t *const data_out, const bool final_tms, const uint8_t *const data_in, size_t clock_cycles)
 {
+	platform_maybe_delay();
 	SET_TMS(0);
 	SET_TDI(0);
 	if (target_delay_us != 0)
@@ -291,6 +293,7 @@ static void jtagtap_tdi_seq_no_delay(const uint8_t *const data_in, const bool fi
 
 static void jtagtap_tdi_seq(const bool final_tms, const uint8_t *const data_in, const size_t clock_cycles)
 {
+	platform_maybe_delay();
 	SET_TMS(0);
 	if (target_delay_us)
 		jtagtap_tdi_seq_clk_delay(data_in, final_tms, clock_cycles);

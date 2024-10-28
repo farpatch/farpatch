@@ -16,9 +16,9 @@ struct gdb_wifi_instance {
 	uint8_t tx_buf[1028];
 	uint8_t rx_buf[1028];
 	char pbuf[GDB_PACKET_BUFFER_SIZE + 4];
-	int tx_bufsize;
-	int rx_bufsize;
-	int rx_bufpos;
+	uint16_t tx_bufsize;
+	uint16_t rx_bufsize;
+	uint16_t rx_bufpos;
 	bool no_ack_mode;
 	bool is_shutting_down;
 	TaskHandle_t pid;
