@@ -96,7 +96,7 @@ void bmp_core_unlock();
 		ESP_LOGI_BMP("GDB", x, ##__VA_ARGS__); \
 	} while (0)
 #endif
-#define DEBUG_GDB(x, ...)    PRINT_NOOP()
+#define DEBUG_GDB(x, ...) PRINT_NOOP()
 #define DEBUG_TARGET(x, ...)                    \
 	do {                                        \
 		ESP_LOGI_BMP("TARG", x, ##__VA_ARGS__); \
@@ -110,9 +110,13 @@ void bmp_core_unlock();
 #endif
 
 /* Use bit-banged GPIO to drive SWD */
-#define SWDPTAP_MODE_GPIO 1
-#define SWDPTAP_MODE_SPI  0
-#define SWDPTAP_MODE_ULP  0
+#define SWDPTAP_MODE_GPIO  0
+#define SWDPTAP_MODE_SPI   0
+#define SWDPTAP_MODE_ULP   0
+#define SWDPTAP_MODE_DEDIC 1
+
+#define JTAGTAP_MODE_GPIO  0
+#define JTAGTAP_MODE_DEDIC 1
 
 #if defined(CONFIG_FARPATCH_DVT2)
 #define CONFIG_TDI_GPIO           8
@@ -263,6 +267,30 @@ void bmp_core_unlock();
 #define CONFIG_UUART_PRESENT 1
 #define CONFIG_UUART_TX_GPIO 48
 #define CONFIG_UUART_RX_GPIO 10
+
+#elif defined(CONFIG_FARPATCH_DVT6)
+#define CONFIG_TDI_GPIO           11
+#define CONFIG_TDO_GPIO           18
+#define CONFIG_TMS_SWDIO_GPIO     21
+#define CONFIG_TMS_SWDIO_DIR_GPIO 20
+#define CONFIG_TCK_SWCLK_GPIO     15
+#define CONFIG_TCK_TDI_DIR_GPIO   8
+#define CONFIG_NRST_GPIO          19
+#define CONFIG_LED_GPIO           4
+#define CONFIG_LED2_GPIO          5
+#define CONFIG_UART_TX_DIR_GPIO   2
+#define CONFIG_UART_TX_GPIO       17
+#define CONFIG_UART_RX_GPIO       16
+#define CONFIG_VREF_ADC_GPIO      3
+#define CONFIG_VREF_ADC_UNIT      ADC_UNIT_1
+#define CONFIG_VREF_ADC_CHANNEL   ADC_CHANNEL_3
+#define CONFIG_ADC_SYSTEM_CHANNEL ADC_CHANNEL_0
+#define CONFIG_ADC_USB_CHANNEL    ADC_CHANNEL_1
+#define CONFIG_ADC_EXT_CHANNEL    -1
+#define CONFIG_ADC_DEBUG_CHANNEL  -1
+
+#define CONFIG_RESET_OPENDRAIN  1
+#define CONFIG_RESET_SENSE_GPIO 22
 
 #elif defined(CONFIG_ESP32C3_MINI1)
 #define CONFIG_TDI_GPIO           4
