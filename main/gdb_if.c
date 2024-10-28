@@ -35,6 +35,7 @@
 #include <freertos/timers.h>
 
 #include "gdb_if.h"
+#include "gdb_main_farpatch.h"
 #include "gdb_packet.h"
 
 #include "exception.h"
@@ -47,18 +48,6 @@
 
 #define GDB_TLS_INDEX     1
 #define EXCEPTION_NETWORK 0x40
-
-struct gdb_wifi_instance {
-	int sock;
-	uint8_t tx_buf[256];
-	uint8_t rx_buf[512];
-	int tx_bufsize;
-	int rx_bufsize;
-	int rx_bufpos;
-	bool no_ack_mode;
-	bool is_shutting_down;
-	TaskHandle_t pid;
-};
 
 static IRAM_ATTR unsigned char gdb_wifi_if_getchar(struct gdb_wifi_instance *instance)
 {
@@ -87,15 +76,6 @@ static IRAM_ATTR unsigned char gdb_wifi_if_getchar_to(struct gdb_wifi_instance *
 	if (instance->is_shutting_down) {
 		return 0xff;
 	}
-	// Optimization for "MSG_PEEK"
-	// if (timeout == 0) {
-	// 	uint8_t tmp;
-	// 	int ret = recv(instance->sock, &tmp, 1, MSG_DONTWAIT);
-	// 	if (ret == 1) {
-	// 		return tmp;
-	// 	}
-	// 	return 0xFF;
-	// }
 	fd_set fds;
 	struct timeval tv;
 
@@ -121,12 +101,13 @@ static IRAM_ATTR unsigned char gdb_wifi_if_getchar_to(struct gdb_wifi_instance *
 
 static IRAM_ATTR void gdb_wifi_if_putchar(struct gdb_wifi_instance *instance, unsigned char c, int flush)
 {
+	// ESP_LOGI("putchar", "instance: %p putting: %c (%d?) %d/%d", instance, c, flush, instance->tx_bufsize, sizeof(instance->tx_buf));
 	if (instance->is_shutting_down) {
 		return;
 	}
 
 	instance->tx_buf[instance->tx_bufsize++] = c;
-	if (flush || (instance->tx_bufsize == sizeof(instance->tx_buf))) {
+	if (flush || (instance->tx_bufsize >= sizeof(instance->tx_buf))) {
 		if (instance->sock > 0) {
 			int ret = send(instance->sock, instance->tx_buf, instance->tx_bufsize, 0);
 			if (ret <= 0) {
@@ -141,25 +122,34 @@ static IRAM_ATTR void gdb_wifi_if_putchar(struct gdb_wifi_instance *instance, un
 	}
 }
 
+IRAM_ATTR bool verify_magic(struct gdb_wifi_instance *bmp)
+{
+	assert(bmp->magic == 0x55239912);
+	return bmp->magic == 0x55239912;
+}
+
 IRAM_ATTR unsigned char gdb_if_getchar_to(int timeout)
 {
-	void **ptr = (void **)pvTaskGetThreadLocalStoragePointer(NULL, GDB_TLS_INDEX);
+	void *ptr = pvTaskGetThreadLocalStoragePointer(NULL, GDB_TLS_INDEX);
 	assert(ptr);
-	return gdb_wifi_if_getchar_to(ptr[0], timeout);
+	verify_magic(ptr);
+	return gdb_wifi_if_getchar_to(ptr, timeout);
 }
 
 IRAM_ATTR unsigned char gdb_if_getchar(void)
 {
-	void **ptr = (void **)pvTaskGetThreadLocalStoragePointer(NULL, GDB_TLS_INDEX);
+	void *ptr = pvTaskGetThreadLocalStoragePointer(NULL, GDB_TLS_INDEX);
 	assert(ptr);
-	return gdb_wifi_if_getchar(ptr[0]);
+	verify_magic(ptr);
+	return gdb_wifi_if_getchar(ptr);
 }
 
 IRAM_ATTR void gdb_if_putchar(unsigned char c, int flush)
 {
-	void **ptr = (void **)pvTaskGetThreadLocalStoragePointer(NULL, GDB_TLS_INDEX);
+	void *ptr = pvTaskGetThreadLocalStoragePointer(NULL, GDB_TLS_INDEX);
 	assert(ptr);
-	gdb_wifi_if_putchar(ptr[0], c, flush);
+	verify_magic(ptr);
+	gdb_wifi_if_putchar(ptr, c, flush);
 }
 
 IRAM_ATTR void gdb_target_printf(struct target_controller *tc, const char *fmt, va_list ap)

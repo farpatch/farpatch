@@ -1,6 +1,6 @@
 
 idf_component_register(
-    REQUIRES soc nvs_flash ulp driver esp_http_server app_update esp_event esp_wifi blackmagic frogfs
+    REQUIRES app_update blackmagic driver esp_event esp_http_server esp_wifi frogfs nvs_flash soc ulp
     SRC_DIRS "."
              "wilma"
     INCLUDE_DIRS "."

@@ -5,24 +5,18 @@
 #include <freertos/task.h>
 #include "esp_log.h"
 
-void raise_exception(uint32_t type, const char *msg)
+void raise_exception(const uint32_t type, const char *const msg)
 {
-	struct exception *e;
 	ESP_LOGW("EX", "Exception: %s", msg);
-	for (e = innermost_exception; e; e = e->outer) {
-		if (e->mask & type) {
-			e->type = type;
-			e->msg = msg;
-			innermost_exception = e->outer;
-#if 0
-			for(int i = 0; i < sizeof(e->jmpbuf)/4; i++) {
-				ESP_LOGI("JBUF", "%d:%08X", i, ((uint32_t*)e->jmpbuf)[i]);
-			}
-#endif
-			longjmp(e->jmpbuf, type);
+	for (exception_s *exception = innermost_exception; exception; exception = exception->outer) {
+		if (exception->mask & type) {
+			exception->type = type;
+			exception->msg = msg;
+			innermost_exception = exception->outer;
+			longjmp(exception->jmpbuf, type);
 		}
 	}
-	ESP_LOGW("EX", "Unhandled exception %" PRId32 ": %s", type, msg);
+	ESP_LOGE("EX", "Unhandled exception %" PRId32 ": %s", type, msg);
 
 	abort();
 }

@@ -29,7 +29,53 @@
 #include "timing.h"
 #include "maths_utils.h"
 
-#if SWDPTAP_MODE_GPIO == 1
+#if SWDPTAP_MODE_DEDIC == 1
+
+#include "driver/dedic_gpio.h"
+#include "driver/gpio.h"
+#include "esp_log.h"
+#include "hal/dedic_gpio_cpu_ll.h"
+#include "gpio-dedic.h"
+
+#define BIT_IN()   (dedic_gpio_cpu_ll_read_in() & SWDIO_TMS_DEDIC_MASK)
+#define CLK_HIGH() dedic_gpio_cpu_ll_write_mask(SWCLK_DEDIC_MASK, SWCLK_DEDIC_MASK)
+#define CLK_LOW()  dedic_gpio_cpu_ll_write_mask(SWCLK_DEDIC_MASK, 0)
+#define BIT_OUT(x) dedic_gpio_cpu_ll_write_mask(SWDIO_TMS_DEDIC_MASK, x)
+
+#undef SWDIO_MODE_FLOAT
+#undef SWDIO_MODE_DRIVE
+
+#if SOC_DEDIC_GPIO_OUT_AUTO_ENABLE
+// ESP32S3
+#define SWDIO_MODE_FLOAT()                                                                     \
+	do {                                                                                       \
+		gpio_ll_output_disable(GPIO_HAL_GET_HW(GPIO_PORT_0), CONFIG_TMS_SWDIO_GPIO);           \
+		REG_WRITE(GPIO_FUNC0_OUT_SEL_CFG_REG + (CONFIG_TMS_SWDIO_GPIO * 4), SIG_GPIO_OUT_IDX); \
+		if (CONFIG_TMS_SWDIO_DIR_GPIO >= 0)                                                    \
+			dedic_gpio_cpu_ll_write_mask(SWDIO_TMS_DIR_DEDIC_MASK, SWDIO_TMS_DIR_DEDIC_MASK);  \
+	} while (0)
+#define SWDIO_MODE_DRIVE()                                                                        \
+	do {                                                                                          \
+		if (CONFIG_TMS_SWDIO_DIR_GPIO >= 0)                                                       \
+			dedic_gpio_cpu_ll_write_mask(SWDIO_TMS_DIR_DEDIC_MASK, 0);                            \
+		REG_WRITE(GPIO_FUNC0_OUT_SEL_CFG_REG + (CONFIG_TMS_SWDIO_GPIO * 4), CORE1_GPIO_OUT0_IDX); \
+		gpio_ll_output_enable(GPIO_HAL_GET_HW(GPIO_PORT_0), CONFIG_TMS_SWDIO_GPIO);               \
+	} while (0)
+#else
+// Others have a dedicated function for this
+#define SWDIO_MODE_FLOAT()                                                                    \
+	do {                                                                                      \
+		dedic_gpio_cpu_ll_enable_output(ALL_OUTPUT_MASK);                                     \
+		if (CONFIG_TMS_SWDIO_DIR_GPIO >= 0)                                                   \
+			dedic_gpio_cpu_ll_write_mask(SWDIO_TMS_DIR_DEDIC_MASK, SWDIO_TMS_DIR_DEDIC_MASK); \
+	} while (0)
+#define SWDIO_MODE_DRIVE()                                                       \
+	do {                                                                         \
+		if (CONFIG_TMS_SWDIO_DIR_GPIO >= 0)                                      \
+			dedic_gpio_cpu_ll_write_mask(SWDIO_TMS_DIR_DEDIC_MASK, 0);           \
+		dedic_gpio_cpu_ll_enable_output(ALL_OUTPUT_MASK | SWDIO_TMS_DEDIC_MASK); \
+	} while (0)
+#endif
 
 void IRAM_ATTR platform_maybe_delay(void);
 
@@ -67,11 +113,10 @@ static void swdptap_turnaround(const swdio_status_t dir)
 		SWDIO_MODE_FLOAT();
 	}
 	esp_rom_delay_us(target_delay_us);
-
-	gpio_set(SWCLK_PORT, SWCLK_PIN);
+	CLK_HIGH();
 	esp_rom_delay_us(target_delay_us);
 
-	gpio_clear(SWCLK_PORT, SWCLK_PIN);
+	CLK_LOW();
 	if (dir == SWDIO_STATUS_DRIVE) {
 		SWDIO_MODE_DRIVE();
 	}
@@ -89,12 +134,12 @@ static uint32_t swdptap_seq_in_clk_delay(const size_t clock_cycles)
 	 */
 	for (size_t cycle = clock_cycles; cycle--;) {
 		esp_rom_delay_us(target_delay_us);
-		const bool bit = gpio_get(SWDIO_IN_PORT, SWDIO_IN_PIN);
-		gpio_set(SWCLK_PORT, SWCLK_PIN);
+		const bool bit = BIT_IN();
+		CLK_HIGH();
 		esp_rom_delay_us(target_delay_us);
 		value >>= 1U;
 		value |= (uint32_t)bit << 31U;
-		gpio_clear(SWCLK_PORT, SWCLK_PIN);
+		CLK_LOW();
 	}
 	value >>= (32U - clock_cycles);
 	return value;
@@ -111,26 +156,14 @@ static uint32_t swdptap_seq_in_no_delay(const size_t clock_cycles)
 	 * to a faster down-count that uses SUBS followed by BCS/BCC.
 	 */
 	for (size_t cycle = clock_cycles; cycle--;) {
-		bool bit = gpio_get(SWDIO_IN_PORT, SWDIO_IN_PIN);
-		gpio_set(SWCLK_PORT, SWCLK_PIN);
+		bool bit = BIT_IN();
+		CLK_HIGH();
 		value >>= 1U;
 		value |= (uint32_t)bit << 31U;
-		gpio_clear(SWCLK_PORT, SWCLK_PIN);
+		CLK_LOW();
 	}
 	value >>= (32U - clock_cycles);
 	return value;
-
-	// This version processes bytes without reversing them, but doesn't
-	// seem to be any faster:
-	// uint32_t value = 0;
-	// for (size_t cycle = 0; cycle < clock_cycles;) {
-	// 	if (gpio_get(SWDIO_PORT, SWDIO_PIN))
-	// 		value |= (1U << cycle);
-	// 	gpio_set(SWCLK_PORT, SWCLK_PIN);
-	// 	++cycle;
-	// 	gpio_clear(SWCLK_PORT, SWCLK_PIN);
-	// }
-	// return value;
 }
 
 static uint32_t swdptap_seq_in(size_t clock_cycles)
@@ -147,14 +180,13 @@ static bool swdptap_seq_in_parity(uint32_t *ret, size_t clock_cycles)
 {
 	platform_maybe_delay();
 	const uint32_t result = swdptap_seq_in(clock_cycles);
+
+	esp_rom_delay_us(target_delay_us);
+	const bool bit = BIT_IN();
+	CLK_HIGH();
 	esp_rom_delay_us(target_delay_us);
 
-	const bool bit = gpio_get(SWDIO_IN_PORT, SWDIO_IN_PIN);
-
-	gpio_set(SWCLK_PORT, SWCLK_PIN);
-	esp_rom_delay_us(target_delay_us);
-
-	gpio_clear(SWCLK_PORT, SWCLK_PIN);
+	CLK_LOW();
 	/* Terminate the read cycle now */
 	swdptap_turnaround(SWDIO_STATUS_DRIVE);
 
@@ -175,13 +207,13 @@ static void swdptap_seq_out_clk_delay(const uint32_t tms_states, const size_t cl
 	 * to a faster down-count that uses SUBS followed by BCS/BCC.
 	 */
 	for (size_t cycle = clock_cycles; cycle--;) {
-		gpio_set_val(SWDIO_PORT, SWDIO_PIN, bit);
+		BIT_OUT(bit);
 		esp_rom_delay_us(target_delay_us);
-		gpio_set(SWCLK_PORT, SWCLK_PIN);
+		CLK_HIGH();
 		esp_rom_delay_us(target_delay_us);
 		value >>= 1U;
 		bit = value & 1U;
-		gpio_clear(SWCLK_PORT, SWCLK_PIN);
+		CLK_LOW();
 	}
 }
 
@@ -197,21 +229,13 @@ static void swdptap_seq_out_no_delay(const uint32_t tms_states, const size_t clo
 	 * to a faster down-count that uses SUBS followed by BCS/BCC.
 	 */
 	for (size_t cycle = clock_cycles; cycle--;) {
-		gpio_clear(SWCLK_PORT, SWCLK_PIN);
-		gpio_set_val(SWDIO_PORT, SWDIO_PIN, bit);
-		gpio_set(SWCLK_PORT, SWCLK_PIN);
+		CLK_LOW();
+		BIT_OUT(bit);
+		CLK_HIGH();
 		value >>= 1U;
 		bit = value & 1U;
 	}
-	gpio_clear(SWCLK_PORT, SWCLK_PIN);
-
-	// For unknown reasons, this non-reversed version no longer works.
-	// for (size_t cycle = 0; cycle < clock_cycles;) {
-	// 	++cycle;
-	// 	gpio_set(SWCLK_PORT, SWCLK_PIN);
-	// 	gpio_set_val(SWDIO_PORT, SWDIO_PIN, tms_states & (1 << cycle));
-	// 	gpio_clear(SWCLK_PORT, SWCLK_PIN);
-	// }
+	CLK_LOW();
 }
 
 static void swdptap_seq_out(const uint32_t tms_states, const size_t clock_cycles)
@@ -229,11 +253,11 @@ static void swdptap_seq_out_parity(const uint32_t tms_states, const size_t clock
 	platform_maybe_delay();
 	const bool parity = calculate_odd_parity(tms_states);
 	swdptap_seq_out(tms_states, clock_cycles);
-	gpio_set_val(SWDIO_PORT, SWDIO_PIN, parity);
+	BIT_OUT(parity);
 	esp_rom_delay_us(target_delay_us);
-	gpio_set(SWCLK_PORT, SWCLK_PIN);
+	CLK_HIGH();
 	esp_rom_delay_us(target_delay_us);
-	gpio_clear(SWCLK_PORT, SWCLK_PIN);
+	CLK_LOW();
 }
 
 void swdptap_init(void)
@@ -242,6 +266,7 @@ void swdptap_init(void)
 	swd_proc.seq_in_parity = swdptap_seq_in_parity;
 	swd_proc.seq_out = swdptap_seq_out;
 	swd_proc.seq_out_parity = swdptap_seq_out_parity;
+	gpio_dedic_init();
 }
 
 #endif

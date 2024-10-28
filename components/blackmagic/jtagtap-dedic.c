@@ -27,9 +27,24 @@
 #include "jtagtap.h"
 #include "platform.h"
 
+#if JTAGTAP_MODE_DEDIC == 1
+#include "driver/dedic_gpio.h"
+#include "driver/gpio.h"
 #include "esp_attr.h"
+#include "esp_log.h"
+#include "hal/dedic_gpio_cpu_ll.h"
+#include "gpio-dedic.h"
 
 jtag_proc_s jtag_proc;
+
+#define CLK_HIGH()   dedic_gpio_cpu_ll_write_mask(SWCLK_DEDIC_MASK, SWCLK_DEDIC_MASK)
+#define CLK_LOW()    dedic_gpio_cpu_ll_write_mask(SWCLK_DEDIC_MASK, 0)
+#define SET_TMS(val) dedic_gpio_cpu_ll_write_mask(SWDIO_TMS_DEDIC_MASK, (val) << SWDIO_TMS_DEDIC_PIN)
+#define SET_TDI(val) dedic_gpio_cpu_ll_write_mask(JTAG_TDI_DEDIC_MASK, (val) << JTAG_TDI_DEDIC_PIN)
+#define SET_TMS_TDI(tms, tdi)     \
+	dedic_gpio_cpu_ll_write_mask( \
+		SWDIO_TMS_DEDIC_MASK | JTAG_TDI_DEDIC_MASK, ((tms) << SWDIO_TMS_DEDIC_PIN) | ((tdi) << JTAG_TDI_DEDIC_PIN))
+#define GET_TDO() (dedic_gpio_cpu_ll_read_in() & JTAG_TDO_DEDIC_MASK)
 
 void IRAM_ATTR platform_maybe_delay(void);
 
@@ -42,21 +57,24 @@ static IRAM_ATTR void jtagtap_cycle(const bool tms, const bool tdi, const size_t
 
 void jtagtap_init(void)
 {
-	gpio_reset_pin(CONFIG_TDI_GPIO);
-	gpio_reset_pin(CONFIG_TDO_GPIO);
-	gpio_reset_pin(CONFIG_TMS_SWDIO_GPIO);
-	gpio_reset_pin(CONFIG_TCK_SWCLK_GPIO);
-	if (CONFIG_TMS_SWDIO_DIR_GPIO >= 0)
-		gpio_reset_pin(CONFIG_TMS_SWDIO_DIR_GPIO);
+	gpio_dedic_init();
 
-	gpio_set_direction(CONFIG_TDI_GPIO, GPIO_MODE_OUTPUT);
-	gpio_set_direction(CONFIG_TDO_GPIO, GPIO_MODE_INPUT);
-	gpio_set_direction(CONFIG_TMS_SWDIO_GPIO, GPIO_MODE_OUTPUT);
-	gpio_set_direction(CONFIG_TCK_SWCLK_GPIO, GPIO_MODE_OUTPUT);
-	if (CONFIG_TMS_SWDIO_DIR_GPIO >= 0)
-		gpio_set_direction(CONFIG_TMS_SWDIO_DIR_GPIO, GPIO_MODE_OUTPUT);
+	ESP_LOGI("jtag", "initializing jtag GPIO");
 
-	TMS_SET_MODE();
+// Ensure the TMS pin is driven as an output, and that TDO is an input
+#if SOC_DEDIC_GPIO_OUT_AUTO_ENABLE
+	REG_WRITE(GPIO_FUNC0_OUT_SEL_CFG_REG + (CONFIG_TMS_SWDIO_GPIO * 4), CORE1_GPIO_OUT0_IDX);
+	gpio_ll_output_enable(GPIO_HAL_GET_HW(GPIO_PORT_0), CONFIG_TMS_SWDIO_GPIO);
+
+	gpio_ll_output_disable(GPIO_HAL_GET_HW(GPIO_PORT_0), CONFIG_TDO_GPIO);
+#else
+	dedic_gpio_cpu_ll_enable_output(ALL_OUTPUT_MASK | SWDIO_TMS_DEDIC_MASK);
+#endif
+
+	if (CONFIG_TMS_SWDIO_DIR_GPIO >= 0)
+		dedic_gpio_cpu_ll_write_mask(SWDIO_TMS_DIR_DEDIC_MASK, 0);
+	if (CONFIG_TCK_TDI_DIR_GPIO >= 0)
+		dedic_gpio_cpu_ll_write_mask(SWCLK_DIR_DEDIC_MASK, 0);
 
 	jtag_proc.jtagtap_reset = jtagtap_reset;
 	jtag_proc.jtagtap_next = jtagtap_next;
@@ -74,43 +92,32 @@ void jtagtap_init(void)
 
 static void jtagtap_reset(void)
 {
-#ifdef TRST_PORT
-	if (platform_hwversion() == 0) {
-		gpio_clear(TRST_PORT, TRST_PIN);
-		for (volatile size_t i = 0; i < 10000U; i++)
-			continue;
-		gpio_set(TRST_PORT, TRST_PIN);
-	}
-#endif
 	jtagtap_soft_reset();
 }
 
 static bool jtagtap_next_clk_delay()
 {
-	gpio_set(TCK_PORT, TCK_PIN);
-	for (volatile uint32_t counter = target_clk_divider; counter > 0; --counter)
-		continue;
-	const uint16_t result = gpio_get(TDO_PORT, TDO_PIN);
-	gpio_clear(TCK_PORT, TCK_PIN);
-	for (volatile uint32_t counter = target_clk_divider; counter > 0; --counter)
-		continue;
+	CLK_HIGH();
+	esp_rom_delay_us(target_delay_us);
+	const uint16_t result = GET_TDO();
+	CLK_LOW();
+	esp_rom_delay_us(target_delay_us);
 	return result != 0;
 }
 
 static bool jtagtap_next_no_delay()
 {
-	gpio_set(TCK_PORT, TCK_PIN);
-	const uint16_t result = gpio_get(TDO_PORT, TDO_PIN);
-	gpio_clear(TCK_PORT, TCK_PIN);
+	CLK_HIGH();
+	const uint16_t result = GET_TDO();
+	CLK_LOW();
 	return result != 0;
 }
 
 static bool jtagtap_next(const bool tms, const bool tdi)
 {
 	platform_maybe_delay();
-	gpio_set_val(TMS_PORT, TMS_PIN, tms);
-	gpio_set_val(TDI_PORT, TDI_PIN, tdi);
-	if (target_clk_divider != UINT32_MAX)
+	SET_TMS_TDI(tms, tdi);
+	if (target_delay_us)
 		return jtagtap_next_clk_delay();
 	else // NOLINT(readability-else-after-return)
 		return jtagtap_next_no_delay();
@@ -120,14 +127,12 @@ static void jtagtap_tms_seq_clk_delay(uint32_t tms_states, const size_t clock_cy
 {
 	for (size_t cycle = 0; cycle < clock_cycles; ++cycle) {
 		const bool state = tms_states & 1U;
-		gpio_set_val(TMS_PORT, TMS_PIN, state);
-		gpio_set(TCK_PORT, TCK_PIN);
-		for (volatile uint32_t counter = target_clk_divider; counter > 0; --counter)
-			continue;
+		SET_TMS(state);
+		CLK_HIGH();
+		esp_rom_delay_us(target_delay_us);
 		tms_states >>= 1U;
-		gpio_clear(TCK_PORT, TCK_PIN);
-		for (volatile uint32_t counter = target_clk_divider; counter > 0; --counter)
-			continue;
+		CLK_LOW();
+		esp_rom_delay_us(target_delay_us);
 	}
 }
 
@@ -135,22 +140,21 @@ static void jtagtap_tms_seq_no_delay(uint32_t tms_states, const size_t clock_cyc
 {
 	bool state = tms_states & 1U;
 	for (size_t cycle = 0; cycle < clock_cycles; ++cycle) {
-		gpio_set_val(TMS_PORT, TMS_PIN, state);
-		gpio_set(TCK_PORT, TCK_PIN);
+		SET_TMS(state);
+		CLK_HIGH();
 		/* Block the compiler from re-ordering the TMS states calculation to preserve timings */
 		__asm__ volatile("" ::: "memory");
 		tms_states >>= 1U;
 		state = tms_states & 1U;
-		__asm__("nop");
-		__asm__("nop");
-		gpio_clear(TCK_PORT, TCK_PIN);
+		CLK_LOW();
 	}
 }
 
 static void jtagtap_tms_seq(const uint32_t tms_states, const size_t ticks)
 {
-	gpio_set(TDI_PORT, TDI_PIN);
-	if (target_clk_divider != UINT32_MAX)
+	platform_maybe_delay();
+	SET_TDI(1);
+	if (target_delay_us)
 		jtagtap_tms_seq_clk_delay(tms_states, ticks);
 	else
 		jtagtap_tms_seq_no_delay(tms_states, ticks);
@@ -165,24 +169,21 @@ static void jtagtap_tdi_tdo_seq_clk_delay(
 		const uint8_t bit = cycle & 7U;
 		const size_t byte = cycle >> 3U;
 		/* On the last cycle, assert final_tms to TMS_PIN */
-		gpio_set_val(TMS_PORT, TMS_PIN, cycle + 1U >= clock_cycles && final_tms);
 		/* Set up the TDI pin and start the clock cycle */
-		gpio_set_val(TDI_PORT, TDI_PIN, data_in[byte] & (1U << bit));
+		SET_TMS_TDI(cycle + 1U >= clock_cycles && final_tms, !!(data_in[byte] & (1U << bit)));
 		/* Start the clock cycle */
-		gpio_set(TCK_PORT, TCK_PIN);
-		for (volatile uint32_t counter = target_clk_divider; counter > 0; --counter)
-			continue;
+		CLK_HIGH();
+		esp_rom_delay_us(target_delay_us);
 		/* If TDO is high, store a 1 in the appropriate position in the value being accumulated */
-		if (gpio_get(TDO_PORT, TDO_PIN))
+		if (GET_TDO())
 			value |= 1U << bit;
 		if (bit == 7U) {
 			data_out[byte] = value;
 			value = 0;
 		}
 		/* Finish the clock cycle */
-		gpio_clear(TCK_PORT, TCK_PIN);
-		for (volatile uint32_t counter = target_clk_divider; counter > 0; --counter)
-			continue;
+		CLK_LOW();
+		esp_rom_delay_us(target_delay_us);
 	}
 	/* If clock_cycles is not divisible by 8, we have some extra data to write back here. */
 	if (clock_cycles & 7U) {
@@ -203,24 +204,21 @@ static void jtagtap_tdi_tdo_seq_no_delay(
 		const bool tdi = data_in[byte] & (1U << bit);
 		/* Block the compiler from re-ordering the calculations to preserve timings */
 		__asm__ volatile("" ::: "memory");
-		gpio_clear(TCK_PORT, TCK_PIN);
+		CLK_LOW();
 		/* Block the compiler from re-ordering the calculations to preserve timings */
 		__asm__ volatile("" ::: "memory");
 		/* Configure the bus for the next cycle */
-		gpio_set_val(TDI_PORT, TDI_PIN, tdi);
-		gpio_set_val(TMS_PORT, TMS_PIN, tms);
+		SET_TMS_TDI(tms, tdi);
 		/* Block the compiler from re-ordering the calculations to preserve timings */
 		__asm__ volatile("" ::: "memory");
 		/* Increment the cycle counter */
 		++cycle;
-		__asm__("nop");
-		__asm__("nop");
 		/* Block the compiler from re-ordering the calculations to preserve timings */
 		__asm__ volatile("nop" ::: "memory");
 		/* Start the clock cycle */
-		gpio_set(TCK_PORT, TCK_PIN);
+		CLK_HIGH();
 		/* If TDO is high, store a 1 in the appropriate position in the value being accumulated */
-		if (gpio_get(TDO_PORT, TDO_PIN)) /* XXX: Try to remove the need for the if here */
+		if (GET_TDO()) /* XXX: Try to remove the need for the if here */
 			value |= 1U << bit;
 		/* If we've got the next whole byte, store the accumulated value and reset state */
 		if (bit == 7U) {
@@ -234,15 +232,15 @@ static void jtagtap_tdi_tdo_seq_no_delay(
 		const size_t byte = (clock_cycles - 1U) >> 3U;
 		data_out[byte] = value;
 	}
-	gpio_clear(TCK_PORT, TCK_PIN);
+	CLK_LOW();
 }
 
 static void jtagtap_tdi_tdo_seq(
 	uint8_t *const data_out, const bool final_tms, const uint8_t *const data_in, size_t clock_cycles)
 {
-	gpio_clear(TMS_PORT, TMS_PIN);
-	gpio_clear(TDI_PORT, TDI_PIN);
-	if (target_clk_divider != UINT32_MAX)
+	platform_maybe_delay();
+	SET_TMS_TDI(0, 0);
+	if (target_delay_us != 0)
 		jtagtap_tdi_tdo_seq_clk_delay(data_in, data_out, final_tms, clock_cycles);
 	else
 		jtagtap_tdi_tdo_seq_no_delay(data_in, data_out, final_tms, clock_cycles);
@@ -254,16 +252,13 @@ static void jtagtap_tdi_seq_clk_delay(const uint8_t *const data_in, const bool f
 		const uint8_t bit = cycle & 7U;
 		const size_t byte = cycle >> 3U;
 		/* On the last tick, assert final_tms to TMS_PIN */
-		gpio_set_val(TMS_PORT, TMS_PIN, cycle + 1U >= clock_cycles && final_tms);
 		/* Set up the TDI pin and start the clock cycle */
-		gpio_set_val(TDI_PORT, TDI_PIN, data_in[byte] & (1U << bit));
-		gpio_set(TCK_PORT, TCK_PIN);
-		for (volatile uint32_t counter = target_clk_divider; counter > 0; --counter)
-			continue;
+		SET_TMS_TDI(cycle + 1U >= clock_cycles && final_tms, !!(data_in[byte] & (1U << bit)));
+		CLK_HIGH();
+		esp_rom_delay_us(target_delay_us);
 		/* Finish the clock cycle */
-		gpio_clear(TCK_PORT, TCK_PIN);
-		for (volatile uint32_t counter = target_clk_divider; counter > 0; --counter)
-			continue;
+		CLK_LOW();
+		esp_rom_delay_us(target_delay_us);
 	}
 }
 
@@ -276,32 +271,28 @@ static void jtagtap_tdi_seq_no_delay(const uint8_t *const data_in, const bool fi
 		const bool tdi = data_in[byte] & (1U << bit);
 		/* Block the compiler from re-ordering the calculations to preserve timings */
 		__asm__ volatile("" ::: "memory");
-		gpio_clear(TCK_PORT, TCK_PIN);
+		CLK_LOW();
 		/* On the last tick, assert final_tms to TMS_PIN */
-		gpio_set_val(TMS_PORT, TMS_PIN, tms);
 		/* Set up the TDI pin and start the clock cycle */
-		gpio_set_val(TDI_PORT, TDI_PIN, tdi);
+		SET_TMS_TDI(tms, !!tdi);
 		/* Block the compiler from re-ordering the calculations to preserve timings */
 		__asm__ volatile("" ::: "memory");
 		/* Increment the cycle counter */
 		++cycle;
-		__asm__("nop");
-		__asm__("nop");
 		/* Block the compiler from re-ordering the calculations to preserve timings */
 		__asm__ volatile("nop" ::: "memory");
 		/* Start the clock cycle */
-		gpio_set(TCK_PORT, TCK_PIN);
+		CLK_HIGH();
 		/* Finish the clock cycle */
 	}
-	__asm__("nop");
-	__asm__("nop");
-	gpio_clear(TCK_PORT, TCK_PIN);
+	CLK_LOW();
 }
 
 static void jtagtap_tdi_seq(const bool final_tms, const uint8_t *const data_in, const size_t clock_cycles)
 {
-	gpio_clear(TMS_PORT, TMS_PIN);
-	if (target_clk_divider != UINT32_MAX)
+	platform_maybe_delay();
+	SET_TMS(0);
+	if (target_delay_us)
 		jtagtap_tdi_seq_clk_delay(data_in, final_tms, clock_cycles);
 	else
 		jtagtap_tdi_seq_no_delay(data_in, final_tms, clock_cycles);
@@ -310,29 +301,29 @@ static void jtagtap_tdi_seq(const bool final_tms, const uint8_t *const data_in, 
 static void jtagtap_cycle_clk_delay(const size_t clock_cycles)
 {
 	for (size_t cycle = 0; cycle < clock_cycles; ++cycle) {
-		gpio_set(TCK_PORT, TCK_PIN);
-		for (volatile uint32_t counter = target_clk_divider; counter > 0; --counter)
-			continue;
-		gpio_clear(TCK_PORT, TCK_PIN);
-		for (volatile uint32_t counter = target_clk_divider; counter > 0; --counter)
-			continue;
+		CLK_HIGH();
+		esp_rom_delay_us(target_delay_us);
+		CLK_LOW();
+		esp_rom_delay_us(target_delay_us);
 	}
 }
 
 static void jtagtap_cycle_no_delay(const size_t clock_cycles)
 {
 	for (size_t cycle = 0; cycle < clock_cycles; ++cycle) {
-		gpio_set(TCK_PORT, TCK_PIN);
+		CLK_HIGH();
 		__asm__ volatile("nop" ::: "memory");
-		gpio_clear(TCK_PORT, TCK_PIN);
+		CLK_LOW();
 	}
 }
 
 static void jtagtap_cycle(const bool tms, const bool tdi, const size_t clock_cycles)
 {
 	jtagtap_next(tms, tdi);
-	if (target_clk_divider != UINT32_MAX)
+	if (target_delay_us)
 		jtagtap_cycle_clk_delay(clock_cycles - 1U);
 	else
 		jtagtap_cycle_no_delay(clock_cycles - 1U);
 }
+
+#endif /* JTAGTAP_MODE_DEDIC == 1 */

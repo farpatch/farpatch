@@ -74,8 +74,8 @@ nvs_handle_t h_nvs_conf;
 // which curiously seems to work around some bugs in
 // ESP-IDF.
 const uint32_t STARTUP_SERVICE_DELAY_MS = 10;
+uint32_t target_delay_us = 0;
 
-static uint32_t frequency;
 #if defined(CONFIG_VSEL_PRESENT)
 static const char *power_source_name = "unknown";
 #endif
@@ -83,32 +83,24 @@ static const char *power_source_name = "unknown";
 void initialise_mdns(const char *hostname);
 void rtt_init(void);
 
-int swdptap_set_frequency(uint32_t frequency)
-{
-	return frequency;
-}
-
-int swdptap_get_frequency(void)
-{
-	return frequency;
-}
-
 void platform_max_frequency_set(uint32_t freq)
 {
-	if (freq < 100) {
+	// Delay is done with a `sleep_us()`, so 1 MHz is the most
+	// we can reliably delay.
+	if ((freq == 0) || (freq > 1000000)) {
+		target_delay_us = 0;
 		return;
 	}
-	if (freq > 48 * 1000 * 1000) {
-		return;
-	}
-	int actual_frequency = swdptap_set_frequency(freq);
-	ESP_LOGI(__func__, "freq:%u", actual_frequency);
+	target_delay_us = 1000000 / freq;
 }
 
 uint32_t platform_max_frequency_get(void)
 {
-	int swdptap_get_frequency(void);
-	return swdptap_get_frequency();
+	// With no delay we run about 12 MHz.
+	if (target_delay_us == 0) {
+		return 12000000;
+	}
+	return 1000000 / target_delay_us;
 }
 
 void platform_init(void)
@@ -487,7 +479,7 @@ void app_main(void)
 
 	ESP_LOGI(TAG, "starting adc");
 	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));
-	xTaskCreate(adc_task, "adc", 1024, NULL, 10, NULL);
+	xTaskCreate(adc_task, "adc", 2048, NULL, 10, NULL);
 
 	ESP_LOGI(TAG, "starting WiLma wifi manager");
 	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));

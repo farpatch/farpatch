@@ -44,22 +44,22 @@ void bmp_core_unlock(void)
 	}
 }
 
-IRAM_ATTR char *gdb_packet_buffer(void)
+bool verify_magic(struct gdb_wifi_instance *bmp);
+char *gdb_packet_buffer(void)
 {
-	void **ptr = (void **)pvTaskGetThreadLocalStoragePointer(NULL, GDB_TLS_INDEX);
+	void *ptr = (void *)pvTaskGetThreadLocalStoragePointer(NULL, GDB_TLS_INDEX);
 	assert(ptr);
-	struct bmp_wifi_instance *instance_ptr = *ptr;
-	return instance_ptr->rx_buf;
+	verify_magic(ptr);
+	struct gdb_wifi_instance *instance_ptr = ptr;
+	return instance_ptr->pbuf;
 }
 
 struct exception **get_innermost_exception(void)
 {
-	void **ptr = (void **)pvTaskGetThreadLocalStoragePointer(NULL, GDB_TLS_INDEX);
-	assert(ptr);
-	return (struct exception **)&ptr[1];
+	return (struct exception **)pvTaskGetThreadLocalStoragePointer(NULL, EXCEPTION_TLS_INDEX);
 }
 
-static void gdb_wifi_destroy(struct bmp_wifi_instance *instance)
+static void gdb_wifi_destroy(struct gdb_wifi_instance *instance)
 {
 	ESP_LOGI("gdb", "destroy %d", instance->sock);
 	num_clients -= 1;
@@ -73,7 +73,8 @@ static void gdb_wifi_destroy(struct bmp_wifi_instance *instance)
 	vTaskDelete(NULL);
 }
 
-static void cortexm_vector_disable(target_s *target, uint32_t vectors) {
+static void cortexm_vector_disable(target_s *target, uint32_t vectors)
+{
 	// This function only makes sense for cortex targets
 	if (!target_is_cortexm(target)) {
 		return;
@@ -87,13 +88,13 @@ static void cortexm_vector_disable(target_s *target, uint32_t vectors) {
 
 static void IRAM_ATTR gdb_wifi_task(void *arg)
 {
-	struct bmp_wifi_instance *instance = (struct bmp_wifi_instance *)arg;
+	struct exception *dummy_pointer = NULL;
+	struct exception **current_exception = &dummy_pointer;
+	vTaskSetThreadLocalStoragePointer(NULL, EXCEPTION_TLS_INDEX, current_exception); // used for exception handling
+	struct gdb_wifi_instance *instance = (struct gdb_wifi_instance *)arg;
+	vTaskSetThreadLocalStoragePointer(NULL, GDB_TLS_INDEX, instance); // used for exception handling
 
-	void *tls[2] = {};
-	tls[0] = arg;
-	vTaskSetThreadLocalStoragePointer(NULL, GDB_TLS_INDEX, tls); // used for exception handling
-
-	ESP_LOGI("gdb", "Started task %d this:%p tlsp:%p", instance->sock, instance, tls);
+	ESP_LOGI("gdb", "Started task %d this:%p", instance->sock, instance);
 
 	int opt = 1;
 	setsockopt(instance->sock, IPPROTO_TCP, TCP_NODELAY, (void *)&opt, sizeof(opt));
@@ -109,7 +110,7 @@ static void IRAM_ATTR gdb_wifi_task(void *arg)
 
 	num_clients += 1;
 
-	char *pbuf = instance->rx_buf;
+	char *pbuf = (char *)instance->rx_buf;
 
 	while (!gdb_is_free) {
 		platform_delay(10);
@@ -154,12 +155,12 @@ static void IRAM_ATTR gdb_wifi_task(void *arg)
 			if (cur_target != prev_target) {
 				uint32_t vectors_to_disable = 0
 #if !defined(CONFIG_CATCH_CORE_RESET)
-	| CORTEXM_DEMCR_VC_CORERESET
+				                              | CORTEXM_DEMCR_VC_CORERESET
 #endif
 #if !defined(CONFIG_CATCH_CORE_HARDFAULT)
-	| CORTEXM_DEMCR_VC_HARDERR
+				                              | CORTEXM_DEMCR_VC_HARDERR
 #endif
-				;
+					;
 				if (vectors_to_disable) {
 					cortexm_vector_disable(cur_target, vectors_to_disable);
 				}
@@ -186,26 +187,28 @@ static void IRAM_ATTR gdb_wifi_task(void *arg)
 			gdb_putpacketz("EFF");
 			target_list_free();
 			morse("TARGET LOST.", 1);
-			gdb_wifi_destroy(instance);
-			return;
 		}
 	}
 }
 
-static void new_bmp_wifi_instance(int sock)
+static void new_gdb_wifi_instance(int sock)
 {
 	char name[CONFIG_FREERTOS_MAX_TASK_NAME_LEN];
 	snprintf(name, sizeof(name) - 1, "gdbc fd:%" PRId16, sock);
 
-	struct bmp_wifi_instance *instance = malloc(sizeof(struct bmp_wifi_instance));
+	struct gdb_wifi_instance *instance = malloc(sizeof(struct gdb_wifi_instance));
 	if (!instance) {
 		return;
 	}
 
 	memset(instance, 0, sizeof(*instance));
 	instance->sock = sock;
+	instance->magic = 0x55239912;
 
-	xTaskCreate(gdb_wifi_task, name, 5000, (void *)instance, tskIDLE_PRIORITY + 2, &instance->pid);
+	// Ensure the wifi task goes on the last available core. This ensures that
+	// the GPIO routines end up on the same core every time.
+	xTaskCreatePinnedToCore(
+		gdb_wifi_task, name, 5000, (void *)instance, tskIDLE_PRIORITY + 2, &instance->pid, configNUMBER_OF_CORES - 1);
 }
 
 void gdb_net_task(void *arg)
@@ -233,7 +236,7 @@ void gdb_net_task(void *arg)
 	while (1) {
 		int s = accept(gdb_if_serv, NULL, NULL);
 		if (s > 0) {
-			new_bmp_wifi_instance(s);
+			new_gdb_wifi_instance(s);
 		}
 	}
 }
@@ -254,7 +257,7 @@ void rtt_monitor_task(void *params)
 	(void)params;
 	extern target_controller_s gdb_controller;
 
-	struct bmp_wifi_instance *instance = malloc(sizeof(struct bmp_wifi_instance));
+	struct gdb_wifi_instance *instance = malloc(sizeof(struct gdb_wifi_instance));
 	if (!instance) {
 		return;
 	}
@@ -262,9 +265,7 @@ void rtt_monitor_task(void *params)
 	instance->sock = -1;
 	instance->is_shutting_down = true; // Set this to `true` to prevent IO from occurring
 
-	void *tls[2] = {};
-	tls[0] = instance;
-	vTaskSetThreadLocalStoragePointer(NULL, GDB_TLS_INDEX, tls); // used for exception handling
+	vTaskSetThreadLocalStoragePointer(NULL, GDB_TLS_INDEX, instance); // used for exception handling
 
 	while (true) {
 		gdb_is_free = true;
