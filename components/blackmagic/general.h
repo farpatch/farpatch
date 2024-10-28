@@ -109,14 +109,17 @@ void bmp_core_unlock();
 #define DEBUG_TARGET(x, ...) PRINT_NOOP()
 #endif
 
-/* Use bit-banged GPIO to drive SWD */
+#if SOC_DEDICATED_GPIO_SUPPORTED
 #define SWDPTAP_MODE_GPIO  0
-#define SWDPTAP_MODE_SPI   0
-#define SWDPTAP_MODE_ULP   0
-#define SWDPTAP_MODE_DEDIC 1
-
 #define JTAGTAP_MODE_GPIO  0
+#define SWDPTAP_MODE_DEDIC 1
 #define JTAGTAP_MODE_DEDIC 1
+#else
+#define SWDPTAP_MODE_GPIO  1
+#define JTAGTAP_MODE_GPIO  1
+#define SWDPTAP_MODE_DEDIC 0
+#define JTAGTAP_MODE_DEDIC 0
+#endif
 
 #if defined(CONFIG_FARPATCH_DVT2)
 #define CONFIG_TDI_GPIO           8
