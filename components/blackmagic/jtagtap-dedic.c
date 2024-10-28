@@ -41,7 +41,10 @@ jtag_proc_s jtag_proc;
 #define CLK_LOW()    dedic_gpio_cpu_ll_write_mask(SWCLK_DEDIC_MASK, 0)
 #define SET_TMS(val) dedic_gpio_cpu_ll_write_mask(SWDIO_TMS_DEDIC_MASK, (val) << SWDIO_TMS_DEDIC_PIN)
 #define SET_TDI(val) dedic_gpio_cpu_ll_write_mask(JTAG_TDI_DEDIC_MASK, (val) << JTAG_TDI_DEDIC_PIN)
-#define GET_TDO()    (dedic_gpio_cpu_ll_read_in() & JTAG_TDO_DEDIC_MASK)
+#define SET_TMS_TDI(tms, tdi)     \
+	dedic_gpio_cpu_ll_write_mask( \
+		SWDIO_TMS_DEDIC_MASK | JTAG_TDI_DEDIC_MASK, ((tms) << SWDIO_TMS_DEDIC_PIN) | ((tdi) << JTAG_TDI_DEDIC_PIN))
+#define GET_TDO() (dedic_gpio_cpu_ll_read_in() & JTAG_TDO_DEDIC_MASK)
 
 void IRAM_ATTR platform_maybe_delay(void);
 
@@ -113,8 +116,7 @@ static bool jtagtap_next_no_delay()
 static bool jtagtap_next(const bool tms, const bool tdi)
 {
 	platform_maybe_delay();
-	SET_TMS(tms);
-	SET_TDI(tdi);
+	SET_TMS_TDI(tms, tdi);
 	if (target_delay_us)
 		return jtagtap_next_clk_delay();
 	else // NOLINT(readability-else-after-return)
@@ -167,9 +169,8 @@ static void jtagtap_tdi_tdo_seq_clk_delay(
 		const uint8_t bit = cycle & 7U;
 		const size_t byte = cycle >> 3U;
 		/* On the last cycle, assert final_tms to TMS_PIN */
-		SET_TMS(cycle + 1U >= clock_cycles && final_tms);
 		/* Set up the TDI pin and start the clock cycle */
-		SET_TDI(!!(data_in[byte] & (1U << bit)));
+		SET_TMS_TDI(cycle + 1U >= clock_cycles && final_tms, !!(data_in[byte] & (1U << bit)));
 		/* Start the clock cycle */
 		CLK_HIGH();
 		esp_rom_delay_us(target_delay_us);
@@ -207,8 +208,7 @@ static void jtagtap_tdi_tdo_seq_no_delay(
 		/* Block the compiler from re-ordering the calculations to preserve timings */
 		__asm__ volatile("" ::: "memory");
 		/* Configure the bus for the next cycle */
-		SET_TDI(tdi);
-		SET_TMS(tms);
+		SET_TMS_TDI(tms, tdi);
 		/* Block the compiler from re-ordering the calculations to preserve timings */
 		__asm__ volatile("" ::: "memory");
 		/* Increment the cycle counter */
@@ -239,8 +239,7 @@ static void jtagtap_tdi_tdo_seq(
 	uint8_t *const data_out, const bool final_tms, const uint8_t *const data_in, size_t clock_cycles)
 {
 	platform_maybe_delay();
-	SET_TMS(0);
-	SET_TDI(0);
+	SET_TMS_TDI(0, 0);
 	if (target_delay_us != 0)
 		jtagtap_tdi_tdo_seq_clk_delay(data_in, data_out, final_tms, clock_cycles);
 	else
@@ -253,9 +252,8 @@ static void jtagtap_tdi_seq_clk_delay(const uint8_t *const data_in, const bool f
 		const uint8_t bit = cycle & 7U;
 		const size_t byte = cycle >> 3U;
 		/* On the last tick, assert final_tms to TMS_PIN */
-		SET_TMS(cycle + 1U >= clock_cycles && final_tms);
 		/* Set up the TDI pin and start the clock cycle */
-		SET_TDI(!!(data_in[byte] & (1U << bit)));
+		SET_TMS_TDI(cycle + 1U >= clock_cycles && final_tms, !!(data_in[byte] & (1U << bit)));
 		CLK_HIGH();
 		esp_rom_delay_us(target_delay_us);
 		/* Finish the clock cycle */
@@ -275,9 +273,8 @@ static void jtagtap_tdi_seq_no_delay(const uint8_t *const data_in, const bool fi
 		__asm__ volatile("" ::: "memory");
 		CLK_LOW();
 		/* On the last tick, assert final_tms to TMS_PIN */
-		SET_TMS(tms);
 		/* Set up the TDI pin and start the clock cycle */
-		SET_TDI(tdi);
+		SET_TMS(tms, !!tdi);
 		/* Block the compiler from re-ordering the calculations to preserve timings */
 		__asm__ volatile("" ::: "memory");
 		/* Increment the cycle counter */
