@@ -149,8 +149,13 @@ void platform_set_baud(uint32_t baud);
 
 #define PLATFORM_HAS_TRACESWO
 #define NUM_TRACE_PACKETS (128) /* This is an 8K buffer */
-#define SWO_ENCODING 2     /* 1 = Manchester, 2 = NRZ / async, 3 = Both */
+#define SWO_ENCODING 3     /* 1 = Manchester, 2 = NRZ / async, 3 = Both */
 #define SWO_ENDPOINT 0U /* Dummy value -- not used */
+
+#define TARGET_UART UART1
+#define TARGET_UART_IDX 1
+#define SWO_UART UART2
+#define SWO_UART_IDX 2
 
 extern uint32_t target_delay_us;
 

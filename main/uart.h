@@ -6,6 +6,4 @@
 void uart_dbg_install(void);
 void uart_init(void);
 
-#define TARGET_UART_IDX 1
-
 #endif /* FARPATCH_UART_H__ */

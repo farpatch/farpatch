@@ -201,7 +201,11 @@ static void uart_config(void)
 		.rx_flow_ctrl_thresh = 120,
 		.source_clk = UART_SCLK_DEFAULT,
 	};
-	ESP_ERROR_CHECK(uart_driver_install(TARGET_UART_IDX, 4096, 256, 16, &uart_event_queue, ESP_INTR_FLAG_IRAM));
+    int intr_alloc_flags = 0;
+#if CONFIG_UART_ISR_IN_IRAM
+    intr_alloc_flags = ESP_INTR_FLAG_IRAM;
+#endif
+	ESP_ERROR_CHECK(uart_driver_install(TARGET_UART_IDX, 4096, 0, 8, &uart_event_queue, intr_alloc_flags));
 	ESP_ERROR_CHECK(uart_param_config(TARGET_UART_IDX, &uart_config));
 	ESP_ERROR_CHECK(uart_set_pin(
 		TARGET_UART_IDX, CONFIG_UART_TX_GPIO, CONFIG_UART_RX_GPIO, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));

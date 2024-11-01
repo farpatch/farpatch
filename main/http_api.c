@@ -10,6 +10,7 @@
 #include "nvs_flash.h"
 #include <string.h>
 #include <stdio.h>
+#include "swo.h"
 #include "target_internal.h"
 #include "version.h"
 #include "wilma/wilma.h"
@@ -250,8 +251,8 @@ static void append_networking_to_output(httpd_req_t *req)
 		"\"uart-udp\": %d,"
 		"\"tftp\": \"farpatch.bin\""
 		"}",
-		generated_hostname, ip, netmask, gw, wilma_current_ssid(), CONFIG_GDB_TCP_PORT, CONFIG_RTT_TCP_PORT, CONFIG_RTT_MAX_CHANNELS,
-		CONFIG_RTT_UDP_PORT, CONFIG_UART_TCP_PORT, CONFIG_UART_UDP_PORT);
+		generated_hostname, ip, netmask, gw, wilma_current_ssid(), CONFIG_GDB_TCP_PORT, CONFIG_RTT_TCP_PORT,
+		CONFIG_RTT_MAX_CHANNELS, CONFIG_RTT_UDP_PORT, CONFIG_UART_TCP_PORT, CONFIG_UART_UDP_PORT);
 	httpd_resp_sendstr_chunk(req, buffer);
 }
 
@@ -363,19 +364,14 @@ static void append_uart_to_output(httpd_req_t *req)
 	char buffer[256];
 	// UART status
 	uint32_t target_baud = 0;
-	uint32_t uuart_baud = 0;
 	uint32_t swo_baud = 0;
-	extern int swo_active;
-	uart_get_baudrate(1, &target_baud);
-	uart_get_baudrate(0, &uuart_baud);
-	if (swo_active) {
-		uart_get_baudrate(2, &swo_baud);
+	uart_get_baudrate(TARGET_UART_IDX, &target_baud);
+	if (swo_current_mode == swo_nrz_uart) {
+		uart_get_baudrate(SWO_UART_IDX, &swo_baud);
 	}
 	snprintf(buffer, sizeof(buffer) - 1,
-		",\"ports\": {\"target\": {\"baudrate\": %" PRIu32 "}, \"uuart\": {\"baudrate\": %" PRIu32 "}, \"swo\": "
-		"{\"baudrate\": "
-		"%" PRIu32 "}}",
-		target_baud, uuart_baud, swo_baud);
+		",\"ports\": {\"target\": {\"baudrate\": %" PRIu32 "}, \"swo\": {\"baudrate\": %" PRIu32 "}}", target_baud,
+		swo_baud);
 	httpd_resp_sendstr_chunk(req, buffer);
 }
 

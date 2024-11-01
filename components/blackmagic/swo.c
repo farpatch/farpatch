@@ -20,7 +20,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* This file implements capture of the TRACESWO output.
+/* This file implements capture of the swo output.
  *
  * ARM DDI 0403D - ARMv7M Architecture Reference Manual
  * ARM DDI 0337I - Cortex-M3 Technical Reference Manual
@@ -28,249 +28,185 @@
  */
 
 #include "general.h"
-#include "swo.h"
-// #include <esp32/clk.h>
+
+#include <esp_clk_tree.h>
 #include <esp_log.h>
 #include <esp_task_wdt.h>
+#include <gdb_packet.h>
+#include <inttypes.h>
+#include <lwip/err.h>
+#include <lwip/netdb.h>
+#include <lwip/sockets.h>
+#include <lwip/sys.h>
+#include "platform.h"
 #include "sdkconfig.h"
+#include "swo.h"
+#include "swo-manchester.h"
+#include "swo-uart.h"
 
-#include "driver/uart.h"
-#include "hal/uart_ll.h"
+static const char TAG[] = "swo";
 
-// static const char TAG[] = "traceswo";
+/* Current SWO decoding mode being used */
+swo_coding_e swo_current_mode;
 
-// static xTaskHandle rx_pid;
-// static volatile bool should_exit_calibration;
-// static xQueueHandle uart_event_queue;
+/* Whether ITM decoding is engaged */
+bool swo_itm_decoding = false;
 
-#define UART_RECALCULATE_BAUD 0x1000
-#define UART_TERMINATE        0x1001
+static uint8_t itm_decoded_buffer[64];
+static uint16_t itm_decoded_buffer_index = 0;
+static uint32_t itm_decode_mask = 0;  /* bitmask of channels to print */
+static uint8_t itm_packet_length = 0; /* decoder state */
+static bool itm_decode_packet = false;
 
-int swo_active = 0;
+// A list of clients to send SWO traffic to.
+static int swo_clients[16] = {};
+static int swo_client_count = 0;
 
-// static esp_err_t uart_reset_rx_fifo(uart_port_t uart_num)
-// {
-// 	//Due to hardware issue, we can not use fifo_rst to reset uart fifo.
-// 	//See description about UART_TXFIFO_RST and UART_RXFIFO_RST in <<esp32_technical_reference_manual>> v2.6 or later.
-
-// 	// we read the data out and make `fifo_len == 0 && rd_addr == wr_addr`.
-// 	while (UART_LL_GET_HW(uart_num)->status.rxfifo_cnt != 0 ||
-// 		   (UART_LL_GET_HW(uart_num)->mem_rx_status.wr_addr != UART_LL_GET_HW(uart_num)->mem_rx_status.rd_addr)) {
-// 		READ_PERI_REG(UART_FIFO_REG(uart_num));
-// 	}
-// 	return ESP_OK;
-// }
-
-// static int32_t uart_baud_detect(uart_port_t uart_num, int sample_bits, int max_tries)
-// {
-// 	int low_period = 0;
-// 	int high_period = 0;
-// 	int tries = 0;
-// 	uint32_t intena_reg = UART_LL_GET_HW(uart_num)->int_ena.val;
-
-// 	// Disable the interruput.
-// 	UART_LL_GET_HW(uart_num)->int_ena.val = 0;
-// 	UART_LL_GET_HW(uart_num)->int_clr.val = ~0;
-
-// 	// Filter
-// 	UART_LL_GET_HW(uart_num)->auto_baud.glitch_filt = 4;
-
-// 	// Clear the previous result
-// 	UART_LL_GET_HW(uart_num)->auto_baud.en = 0;
-// 	UART_LL_GET_HW(uart_num)->auto_baud.en = 1;
-// 	ESP_LOGI(__func__, "waiting for %d samples", sample_bits);
-// 	while (UART_LL_GET_HW(uart_num)->rxd_cnt.edge_cnt < sample_bits) {
-// 		if (tries++ >= max_tries) {
-// 			// Disable the baudrate detection
-// 			UART_LL_GET_HW(uart_num)->auto_baud.en = 0;
-
-// 			// Reset the fifo
-// 			ESP_LOGD(__func__, "resetting the fifo");
-// 			uart_reset_rx_fifo(uart_num);
-// 			UART_LL_GET_HW(uart_num)->int_ena.val = intena_reg;
-// 			return -1;
-// 		}
-// 		vTaskDelay(pdMS_TO_TICKS(10));
-// 		// esp_task_wdt_reset();
-// 		// ets_delay_us(10);
-// 	}
-// 	low_period = UART_LL_GET_HW(uart_num)->lowpulse.min_cnt;
-// 	high_period = UART_LL_GET_HW(uart_num)->highpulse.min_cnt;
-
-// 	// Disable the baudrate detection
-// 	UART_LL_GET_HW(uart_num)->auto_baud.en = 0;
-
-// 	// Reset the fifo
-// 	ESP_LOGD(__func__, "resetting the fifo");
-// 	uart_reset_rx_fifo(uart_num);
-// 	UART_LL_GET_HW(uart_num)->int_ena.val = intena_reg;
-
-// 	// Set the clock divider reg
-// 	UART_LL_GET_HW(uart_num)->clk_div.div_int = (low_period > high_period) ? high_period : low_period;
-
-// 	// Return the divider. baud = APB / divider
-// 	return esp_clk_apb_freq() / ((low_period > high_period) ? high_period : low_period);
-// }
-
-// /**
-//  * @brief UART Receive Task
-//  *
-//  */
-// static void swo_uart_rx_task(void *arg)
-// {
-// 	uint32_t default_baud = (uint32_t)arg;
-// 	int baud_rate = default_baud;
-// 	esp_err_t ret;
-// 	uint8_t buf[256];
-// 	int bufpos = 0;
-
-// 	if (baud_rate == 0) {
-// 		baud_rate = 115200;
-// 	}
-
-// 	ret = uart_set_pin(
-// 		CONFIG_TRACE_SWO_UART_IDX, UART_PIN_NO_CHANGE, CONFIG_TDO_GPIO, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-// 	if (ret != ESP_OK) {
-// 		ESP_LOGE(TAG, "unable to configure SWO UART pin: %s", esp_err_to_name(ret));
-// 		goto out;
-// 	}
-
-// 	uart_config_t uart_config = {
-// 		.baud_rate = baud_rate,
-// 		.data_bits = UART_DATA_8_BITS,
-// 		.parity = UART_PARITY_DISABLE,
-// 		.stop_bits = UART_STOP_BITS_1,
-// 		.flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-// 	};
-// 	ret = uart_driver_install(CONFIG_TRACE_SWO_UART_IDX, 4096, 256, 16, &uart_event_queue, 0);
-// 	if (ret != ESP_OK) {
-// 		ESP_LOGE(TAG, "unable to install SWO UART driver: %s", esp_err_to_name(ret));
-// 		goto out;
-// 	}
-
-// 	ret = uart_param_config(CONFIG_TRACE_SWO_UART_IDX, &uart_config);
-// 	if (ret != ESP_OK) {
-// 		ESP_LOGE(TAG, "unable to configure SWO UART driver: %s", esp_err_to_name(ret));
-// 		goto out;
-// 	}
-
-// 	const uart_intr_config_t uart_intr = {
-// 		.intr_enable_mask = UART_RXFIFO_FULL_INT_ENA_M | UART_RXFIFO_TOUT_INT_ENA_M | UART_FRM_ERR_INT_ENA_M |
-// 	                        UART_RXFIFO_OVF_INT_ENA_M,
-// 		.rxfifo_full_thresh = 80,
-// 		.rx_timeout_thresh = 2,
-// 		.txfifo_empty_intr_thresh = 10,
-// 	};
-
-// 	ret = uart_intr_config(CONFIG_TRACE_SWO_UART_IDX, &uart_intr);
-// 	if (ret != ESP_OK) {
-// 		ESP_LOGE(TAG, "unable to configure UART interrupt: %s", esp_err_to_name(ret));
-// 		goto out;
-// 	}
-
-// 	if (default_baud == 0) {
-// 		ESP_LOGI(TAG, "baud rate not specified, initiating autobaud detection");
-// 		baud_rate = uart_baud_detect(CONFIG_TRACE_SWO_UART_IDX, 20, 10);
-// 		ESP_LOGI(TAG, "baud rate detected as %d", baud_rate);
-// 	}
-
-// 	ESP_LOGI(TAG, "UART driver started with baud rate of %d, beginning reception...", baud_rate);
-
-// 	while (1) {
-// 		uart_event_t evt;
-
-// 		if (xQueueReceive(uart_event_queue, (void *)&evt, 100)) {
-// 			if (evt.type == UART_FIFO_OVF) {
-// 				// uart_overrun_cnt++;
-// 			}
-// 			if (evt.type == UART_FRAME_ERR) {
-// 				// uart_errors++;
-// 			}
-// 			if (evt.type == UART_BUFFER_FULL) {
-// 				// uart_queue_full_cnt++;
-// 			}
-
-// 			if (evt.type == UART_TERMINATE) {
-// 				break;
-// 			}
-
-// 			if (baud_rate == -1 || evt.type == UART_RECALCULATE_BAUD) {
-// 				esp_err_t ret = uart_set_pin(CONFIG_TRACE_SWO_UART_IDX, UART_PIN_NO_CHANGE, CONFIG_TDO_GPIO,
-// 					UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-// 				if (ret != ESP_OK) {
-// 					ESP_LOGE(TAG, "unable to configure SWO UART pin: %s", esp_err_to_name(ret));
-// 					goto out;
-// 				}
-
-// 				if ((evt.size != 0) && (evt.type == UART_RECALCULATE_BAUD)) {
-// 					baud_rate = evt.size;
-// 					ESP_LOGI(TAG, "setting baud rate to %d", baud_rate);
-// 					uart_set_baudrate(CONFIG_TRACE_SWO_UART_IDX, baud_rate);
-// 				} else {
-// 					ESP_LOGD(TAG, "detecting baud rate");
-// 					baud_rate = uart_baud_detect(CONFIG_TRACE_SWO_UART_IDX, 20, 50);
-// 					ESP_LOGI(TAG, "baud rate detected as %d", baud_rate);
-// 				}
-// 			}
-
-// 			bufpos = uart_read_bytes(CONFIG_TRACE_SWO_UART_IDX, &buf[bufpos], sizeof(buf) - bufpos, 0);
-
-// 			if (bufpos > 0) {
-// 				char logstr[bufpos * 3 + 1];
-// 				memset(logstr, 0, sizeof(logstr));
-// 				int j;
-// 				for (j = 0; j < bufpos; j++) {
-// 					sprintf(logstr + (j * 3), " %02x", buf[j]);
-// 				}
-// 				ESP_LOGI(TAG, "uart has rx %d bytes: %s", bufpos, logstr);
-// 				// uart_rx_count += bufpos;
-// 				// http_term_broadcast_uart(buf, bufpos);
-
-// 				bufpos = 0;
-// 			} // if(bufpos)
-// 		} else if (baud_rate == -1) {
-// 			esp_err_t ret = uart_set_pin(
-// 				CONFIG_TRACE_SWO_UART_IDX, UART_PIN_NO_CHANGE, CONFIG_TDO_GPIO, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-// 			if (ret != ESP_OK) {
-// 				ESP_LOGE(TAG, "unable to configure SWO UART pin: %s", esp_err_to_name(ret));
-// 				goto out;
-// 			}
-
-// 			ESP_LOGD(TAG, "detecting baud rate");
-// 			baud_rate = uart_baud_detect(CONFIG_TRACE_SWO_UART_IDX, 20, 50);
-// 			ESP_LOGI(TAG, "baud rate detected as %d", baud_rate);
-// 		}
-// 	}
-
-// out:
-// 	uart_driver_delete(CONFIG_TRACE_SWO_UART_IDX);
-// 	rx_pid = NULL;
-// 	vTaskDelete(NULL);
-// }
-
-void swo_deinit(bool deallocate)
+static uint16_t swo_itm_decode(const uint8_t *data, uint16_t len)
 {
-	// swo_active = 0;
-	// if (rx_pid) {
-	// 	uart_event_t msg;
-	// 	msg.type = UART_TERMINATE;
-	// 	xQueueSend(uart_event_queue, &msg, portMAX_DELAY);
-
-	// 	while (rx_pid != NULL) {
-	// 		vTaskDelay(pdMS_TO_TICKS(10));
-	// 	}
-	// }
+	/* Step through each byte in the SWO data buffer */
+	for (uint16_t idx = 0; idx < len; ++idx) {
+		/* If we're waiting for a new ITM packet, start decoding the new byte as a header */
+		if (itm_packet_length == 0) {
+			/* Check that the required to be 0 bit of the SWIT packet is, and that the size bits aren't 0 */
+			if ((data[idx] & 0x04U) == 0U && (data[idx] & 0x03U) != 0U) {
+				/* Now extract the stimulus port address (stream number) and payload size */
+				uint8_t stream = data[idx] >> 3U;
+				/* Map 1 -> 1, 2 -> 2, and 3 -> 4 */
+				itm_packet_length = 1U << ((data[idx] & 3U) - 1U);
+				/* Determine if the packet should be displayed */
+				itm_decode_packet = (itm_decode_mask & (1U << stream)) != 0U;
+			} else {
+				/* If the bit is not 0, this is an invalid SWIT packet, so reset state */
+				itm_decode_packet = false;
+				itm_decoded_buffer_index = 0;
+			}
+		} else {
+			/* If we should actually decode this packet, then forward the data to the decoded data buffer */
+			if (itm_decode_packet) {
+				itm_decoded_buffer[itm_decoded_buffer_index++] = data[idx];
+				/* If the buffer has filled up and needs flushing, try to flush the data to the serial endpoint */
+				if (itm_decoded_buffer_index == sizeof(itm_decoded_buffer)) {
+					/* However, if the link is not yet up, drop the packet data silently */
+					// if (usb_get_config() && gdb_serial_get_dtr())
+					// 	debug_serial_send_stdout(itm_decoded_buffer, itm_decoded_buffer_index);
+					itm_decoded_buffer_index = 0U;
+				}
+			}
+			/* Mark the byte consumed regardless */
+			--itm_packet_length;
+		}
+	}
+	// If there is data in the buffer, send it to any listening TCP connections
+	return len;
 }
-void swo_init(swo_coding_e swo_mode, uint32_t baudrate, uint32_t itm_stream_bitmask)
+
+void swo_post(void *data, size_t len)
 {
-	// if (!rx_pid) {
-	// 	ESP_LOGI(TAG, "initializing traceswo");
-	// 	// xTaskCreate(swo_uart_rx_task, "swo_rx_task", 2048, (void *)baudrate, 10, &rx_pid);
-	// 	xTaskCreatePinnedToCore(
-	// 		swo_uart_rx_task, (const char *)"swo_rx_task", 2048, (void *)baudrate, 10, &rx_pid, tskNO_AFFINITY);
-	// } else {
-	// 	ESP_LOGI(TAG, "traceswo already initialized, reinitializing...");
-	// 	traceswo_baud(baudrate);
-	// }
-	// swo_active = 1;
+	for (int i = 0; i < (sizeof(swo_clients) / sizeof(*swo_clients)); i += 1) {
+		if (swo_clients[i] <= 0) {
+			continue;
+		}
+		if (send(swo_clients[i], data, len, 0) <= 0) {
+			close(swo_clients[i]);
+			swo_clients[i] = 0;
+		}
+	}
+}
+
+void swo_listen_task(void *ignored)
+{
+	int swo_server;
+
+	(void)ignored;
+	if (CONFIG_SWO_TCP_PORT == -1) {
+		return;
+	}
+	struct sockaddr_in addr;
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons(CONFIG_SWO_TCP_PORT);
+	addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+	assert((swo_server = socket(PF_INET, SOCK_STREAM, 0)) != -1);
+	int opt = 1;
+	assert(setsockopt(swo_server, SOL_SOCKET, SO_REUSEADDR, (void *)&opt, sizeof(opt)) != -1);
+	assert(setsockopt(swo_server, IPPROTO_TCP, TCP_NODELAY, (void *)&opt, sizeof(opt)) != -1);
+
+	assert(bind(swo_server, (struct sockaddr *)&addr, sizeof(addr)) != -1);
+	assert(listen(swo_server, 1) != -1);
+
+	ESP_LOGI(TAG, "swo server listening on port %d", CONFIG_SWO_TCP_PORT);
+
+	while (1) {
+		int s = accept(swo_server, NULL, NULL);
+		if (s <= 0) {
+			continue;
+		}
+
+		// Look for a free slot in the connection array.
+		bool found = false;
+		for (int i = 0; i < (sizeof(swo_clients) / sizeof(*swo_clients)); i += 1) {
+			if (swo_clients[i] == 0) {
+				swo_clients[i] = s;
+				swo_client_count += 1;
+				found = true;
+				break;
+			}
+		}
+		if (!found) {
+			ESP_LOGE("swo", "unable to accept connection %d because connection table is full", s);
+			close(s);
+		}
+	}
+}
+
+void swo_baud(unsigned int baud)
+{
+#if SWO_ENCODING == 2 || SWO_ENCODING == 3
+	if (swo_current_mode == swo_nrz_uart) {
+		swo_uart_set_baudrate(baud);
+	}
+#endif
+}
+
+void swo_deinit(const bool deallocate)
+{
+#if SWO_ENCODING == 1 || SWO_ENCODING == 3
+	if (swo_current_mode == swo_manchester)
+		swo_manchester_deinit();
+#endif
+#if SWO_ENCODING == 2 || SWO_ENCODING == 3
+	if (swo_current_mode == swo_nrz_uart) {
+		swo_uart_deinit();
+	}
+#endif
+	swo_current_mode = swo_none;
+}
+
+void swo_init(const swo_coding_e swo_mode, const uint32_t baudrate, const uint32_t itm_stream_bitmask)
+{
+#if SWO_ENCODING == 1
+	(void)baudrate;
+#endif
+
+	/* Configure the ITM decoder and state */
+	itm_decode_mask = itm_stream_bitmask;
+	swo_itm_decoding = itm_stream_bitmask != 0;
+
+	/* Now determine which mode to enable and initialise it */
+#if SWO_ENCODING == 1 || SWO_ENCODING == 3
+	if (swo_mode == swo_manchester)
+		swo_manchester_init();
+#endif
+#if SWO_ENCODING == 2 || SWO_ENCODING == 3
+	if (swo_mode == swo_nrz_uart) {
+		/* Ensure the baud rate is something sensible */
+		swo_uart_init(baudrate ? baudrate : SWO_DEFAULT_BAUD);
+		uint32_t detected_baudrate = swo_uart_get_baudrate();
+		gdb_outf("Baudrate: %" PRIu32 " ", detected_baudrate);
+		ESP_LOGI(TAG, "starting SWO with baudrate %" PRId32, detected_baudrate);
+	}
+#endif
+	/* Make a note of which mode we initialised into */
+	swo_current_mode = swo_mode;
 }

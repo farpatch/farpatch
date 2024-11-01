@@ -263,17 +263,6 @@ void platform_init(void)
 	gpio_set_direction(CONFIG_VTARGET_EN_GPIO, GPIO_MODE_OUTPUT);
 #endif
 
-// By default, drive the universal UART to 0 to emulate GND.
-#if defined(CONFIG_UUART_PRESENT)
-	gpio_reset_pin(CONFIG_UUART_RX_GPIO);
-	gpio_set_direction(CONFIG_UUART_RX_GPIO, GPIO_MODE_OUTPUT);
-	gpio_set_level(CONFIG_UUART_RX_GPIO, 0);
-
-	gpio_reset_pin(CONFIG_UUART_RX_GPIO);
-	gpio_set_direction(CONFIG_UUART_RX_GPIO, GPIO_MODE_OUTPUT);
-	gpio_set_level(CONFIG_UUART_RX_GPIO, 0);
-#endif /* CONFIG_UUART_PRESENT */
-
 #if defined(CONFIG_VSEL_PRESENT)
 	{
 		gpio_reset_pin(CONFIG_VSEL_TARGET_GPIO);
@@ -450,11 +439,6 @@ void app_main(void)
 	gpio_set_direction(CONFIG_LED2_GPIO, GPIO_MODE_OUTPUT);
 	gpio_set_level(CONFIG_LED2_GPIO, 1);
 #endif
-#if defined(CONFIG_UUART_TX_DIR_GPIO) && CONFIG_UUART_TX_DIR_GPIO >= 0
-	gpio_reset_pin(CONFIG_UUART_TX_DIR_GPIO);
-	gpio_set_direction(CONFIG_UUART_TX_DIR_GPIO, GPIO_MODE_OUTPUT);
-	gpio_set_level(CONFIG_UUART_TX_DIR_GPIO, 0);
-#endif
 #if defined(CONFIG_UART_TX_DIR_GPIO) && CONFIG_UART_TX_DIR_GPIO >= 0
 	gpio_reset_pin(CONFIG_UART_TX_DIR_GPIO);
 	gpio_set_direction(CONFIG_UART_TX_DIR_GPIO, GPIO_MODE_OUTPUT);
@@ -512,6 +496,12 @@ void app_main(void)
 	ESP_LOGI(TAG, "starting tftp server");
 	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));
 	ota_tftp_init_server(69, 4);
+
+	ESP_LOGI(TAG, "starting swo server");
+	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));
+	void swo_listen_task(void *);
+	xTaskCreate(swo_listen_task, "swo listen", 2000, NULL, 1, NULL);
+
 
 #ifdef CONFIG_RESET_TARGET_ON_BOOT
 	ESP_LOGI(TAG, "resetting target on boot");
