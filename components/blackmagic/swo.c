@@ -50,9 +50,9 @@ static const char TAG[] = "swo";
 swo_coding_e swo_current_mode;
 
 /* Whether ITM decoding is engaged */
-bool swo_itm_decoding = false;
+static bool swo_itm_decoding = false;
 
-static uint8_t itm_decoded_buffer[64];
+static uint8_t itm_decoded_buffer[128];
 static uint16_t itm_decoded_buffer_index = 0;
 static uint32_t itm_decode_mask = 0;  /* bitmask of channels to print */
 static uint8_t itm_packet_length = 0; /* decoder state */
@@ -62,10 +62,28 @@ static bool itm_decode_packet = false;
 static int swo_clients[16] = {};
 static int swo_client_count = 0;
 
-static uint16_t swo_itm_decode(const uint8_t *data, uint16_t len)
+static void swo_post_to_all_clients(const uint8_t *data, size_t len)
 {
+	for (int i = 0; i < (sizeof(swo_clients) / sizeof(*swo_clients)); i += 1) {
+		if (swo_clients[i] <= 0) {
+			continue;
+		}
+		if (send(swo_clients[i], data, len, 0) <= 0) {
+			close(swo_clients[i]);
+			swo_clients[i] = 0;
+		}
+	}
+}
+
+void swo_post(const uint8_t *data, size_t len)
+{
+	if (!swo_itm_decoding) {
+		swo_post_to_all_clients(data, len);
+		return;
+	}
+
 	/* Step through each byte in the SWO data buffer */
-	for (uint16_t idx = 0; idx < len; ++idx) {
+	for (size_t idx = 0; idx < len; ++idx) {
 		/* If we're waiting for a new ITM packet, start decoding the new byte as a header */
 		if (itm_packet_length == 0) {
 			/* Check that the required to be 0 bit of the SWIT packet is, and that the size bits aren't 0 */
@@ -87,29 +105,12 @@ static uint16_t swo_itm_decode(const uint8_t *data, uint16_t len)
 				itm_decoded_buffer[itm_decoded_buffer_index++] = data[idx];
 				/* If the buffer has filled up and needs flushing, try to flush the data to the serial endpoint */
 				if (itm_decoded_buffer_index == sizeof(itm_decoded_buffer)) {
-					/* However, if the link is not yet up, drop the packet data silently */
-					// if (usb_get_config() && gdb_serial_get_dtr())
-					// 	debug_serial_send_stdout(itm_decoded_buffer, itm_decoded_buffer_index);
+					swo_post_to_all_clients(itm_decoded_buffer, itm_decoded_buffer_index);
 					itm_decoded_buffer_index = 0U;
 				}
 			}
 			/* Mark the byte consumed regardless */
 			--itm_packet_length;
-		}
-	}
-	// If there is data in the buffer, send it to any listening TCP connections
-	return len;
-}
-
-void swo_post(void *data, size_t len)
-{
-	for (int i = 0; i < (sizeof(swo_clients) / sizeof(*swo_clients)); i += 1) {
-		if (swo_clients[i] <= 0) {
-			continue;
-		}
-		if (send(swo_clients[i], data, len, 0) <= 0) {
-			close(swo_clients[i]);
-			swo_clients[i] = 0;
 		}
 	}
 }

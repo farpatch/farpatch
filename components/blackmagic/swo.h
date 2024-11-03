@@ -39,6 +39,6 @@ void swo_init(swo_coding_e swo_mode, uint32_t baudrate, uint32_t itm_stream_bitm
 void swo_deinit(bool deallocate);
 
 /* Send SWO data to anyone who's listening */
-void swo_post(void *data, size_t len);
+void swo_post(const uint8_t *data, size_t len);
 
 #endif /* PLATFORMS_COMMON_SWO_H */
