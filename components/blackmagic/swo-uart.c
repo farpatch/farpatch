@@ -12,11 +12,15 @@
 #include <driver/uart.h>
 #include <hal/uart_ll.h>
 
-#define SWO_UART_RECALCULATE_BAUD 0x1000
-#define SWO_UART_TERMINATE        0x1001
+#define SWO_UART_UPDATE_BAUD 0x1000
+#define SWO_UART_TERMINATE   0x1001
 
 #define SWO_AUTOBAUD_SAMPLES       100
 #define SWO_AUTOBAUD_MAXIMUM_TRIES 100000
+
+// If we get this many framing errors in a row,
+// re-run autobaud.
+#define RE_AUTOBAUD_THRESHOLD 20
 
 static const char TAG[] = "swo-uart";
 
@@ -185,7 +189,10 @@ static void swo_uart_rx_task(void *arg)
 		goto out;
 	}
 
-	uint32_t baud_rate = uart_reconfigure((uint32_t)arg);
+	uint32_t baud_rate = (uint32_t)arg;
+	uint32_t uart_errors = 0;
+	bool autobaud = baud_rate == 0;
+	baud_rate = uart_reconfigure(baud_rate);
 
 	ESP_LOGI(TAG, "UART driver started with baud rate of %" PRId32, swo_uart_get_baudrate());
 
@@ -196,17 +203,32 @@ static void swo_uart_rx_task(void *arg)
 			if (evt.type == UART_BUFFER_FULL) {
 				ESP_LOGI(TAG, "UART FIFO is full");
 			}
+			// For framing errors, count up quickly and let it slowly relax.
+			if (evt.type == UART_FRAME_ERR) {
+				uart_errors += 3;
+				if (autobaud && (uart_errors >= (RE_AUTOBAUD_THRESHOLD * 3))) {
+					ESP_LOGI(TAG, "re-running autobaud due to an excessive number of framing errors");
+					baud_rate = uart_reconfigure(0);
+					uart_errors = 0;
+				}
+				continue;
+			}
+			if (uart_errors) {
+				uart_errors -= 1;
+			}
 
 			if (evt.type == SWO_UART_TERMINATE) {
 				break;
 			}
 
-			if (baud_rate == 0 || evt.type == SWO_UART_RECALCULATE_BAUD) {
-				if ((evt.size != 0) && (evt.type == SWO_UART_RECALCULATE_BAUD)) {
+			if (baud_rate == 0 || evt.type == SWO_UART_UPDATE_BAUD) {
+				if ((evt.size != 0) && (evt.type == SWO_UART_UPDATE_BAUD)) {
+					autobaud = false;
 					baud_rate = evt.size;
 					ESP_LOGI(TAG, "setting baud rate to %" PRIu32, baud_rate);
 					uart_set_baudrate(SWO_UART_IDX, baud_rate);
 				} else {
+					autobaud = true;
 					baud_rate = uart_reconfigure(0);
 				}
 			}
@@ -224,6 +246,7 @@ static void swo_uart_rx_task(void *arg)
 				// ESP_LOGI(TAG, "uart has rx %d bytes: %s", bytes_read, logstr);
 			}
 		} else if (baud_rate == 0) {
+			autobaud = true;
 			baud_rate = uart_reconfigure(0);
 		}
 	}
@@ -237,7 +260,7 @@ out:
 void swo_uart_set_baudrate(unsigned int baud)
 {
 	uart_event_t msg;
-	msg.type = SWO_UART_RECALCULATE_BAUD;
+	msg.type = SWO_UART_UPDATE_BAUD;
 	msg.size = baud;
 	xQueueSend(swo_uart_event_queue, &msg, portMAX_DELAY);
 }
