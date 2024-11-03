@@ -1,13 +1,14 @@
-#include "driver/uart.h"
-#include "esp_attr.h"
-#include "esp_http_server.h"
-#include "esp_ota_ops.h"
-#include "esp_partition.h"
+#include <driver/uart.h>
+#include <esp_attr.h>
+#include <esp_http_server.h>
+#include <esp_ota_ops.h>
+#include <esp_partition.h>
 #include "exception.h"
+#include "farpatch_adc.h"
 #include "general.h"
-#include "hashmap.h"
+#include <hashmap.h>
 #include <inttypes.h>
-#include "nvs_flash.h"
+#include <nvs_flash.h>
 #include <string.h>
 #include <stdio.h>
 #include "swo.h"
@@ -322,20 +323,52 @@ static void append_sysinfo_to_output(httpd_req_t *req)
 	httpd_resp_sendstr_chunk(req, buffer);
 }
 
-static void append_voltages_to_output(httpd_req_t *req)
+static void append_voltages_to_output(httpd_req_t *req, const char *prefix, const char *suffix)
 {
 	char buffer[256];
 	// Voltages
+	httpd_resp_sendstr_chunk(req, prefix);
 	snprintf(buffer, sizeof(buffer) - 1,
-		",\"voltages\": {"
-		"\"system\": %" PRIu32 ","
+#if SOC_TEMP_SENSOR_SUPPORTED
+		"\"temperature\": %f,"
+#endif
+#if defined(CONFIG_VREF_ADC_CHANNEL) && CONFIG_VREF_ADC_CHANNEL >= 0
 		"\"target\": %" PRIu32 ","
+#endif
+#if defined(CONFIG_ADC_USB_CHANNEL) && CONFIG_ADC_USB_CHANNEL >= 0
 		"\"usb\": %" PRIu32 ","
+#endif
+#if defined(CONFIG_ADC_DEBUG_CHANNEL) && CONFIG_ADC_DEBUG_CHANNEL >= 0
 		"\"debug\": %" PRIu32 ","
-		"\"ext\": %" PRIu32 ""
-		"}",
-		3300ul, 3300ul, 5000ul, 5000ul, 3300ul);
+#endif
+#if defined(CONFIG_ADC_EXT_CHANNEL) && CONFIG_ADC_EXT_CHANNEL >= 0
+		"\"ext\": %" PRIu32 ","
+#endif
+#if defined(CONFIG_ADC_SYSTEM_CHANNEL) && CONFIG_ADC_SYSTEM_CHANNEL >= 0
+		"\"system\": %" PRIu32 ","
+#endif
+		"\"core\": %" PRIu32 "",
+#if SOC_TEMP_SENSOR_SUPPORTED
+		temperature,
+#endif
+#if defined(CONFIG_VREF_ADC_CHANNEL) && CONFIG_VREF_ADC_CHANNEL >= 0
+		voltages_mv[ADC_TARGET_VOLTAGE],
+#endif
+#if defined(CONFIG_ADC_USB_CHANNEL) && CONFIG_ADC_USB_CHANNEL >= 0
+		voltages_mv[ADC_USB_VOLTAGE],
+#endif
+#if defined(CONFIG_ADC_DEBUG_CHANNEL) && CONFIG_ADC_DEBUG_CHANNEL >= 0
+		voltages_mv[ADC_DEBUG_VOLTAGE],
+#endif
+#if defined(CONFIG_ADC_EXT_CHANNEL) && CONFIG_ADC_EXT_CHANNEL >= 0
+		voltages_mv[ADC_EXT_VOLTAGE],
+#endif
+#if defined(CONFIG_ADC_SYSTEM_CHANNEL) && CONFIG_ADC_SYSTEM_CHANNEL >= 0
+		voltages_mv[ADC_SYSTEM_VOLTAGE],
+#endif
+		voltages_mv[ADC_CORE_VOLTAGE]);
 	httpd_resp_sendstr_chunk(req, buffer);
+	httpd_resp_sendstr_chunk(req, suffix);
 }
 
 static void append_targets_to_output(httpd_req_t *req)
@@ -385,7 +418,7 @@ esp_err_t cgi_status(httpd_req_t *req)
 	httpd_resp_sendstr_chunk(req, "{\"status\":\"ok\"");
 	append_version_to_output(req);
 	append_sysinfo_to_output(req);
-	append_voltages_to_output(req);
+	append_voltages_to_output(req, ",\"voltages\": {", "}");
 	append_networking_to_output(req);
 	append_targets_to_output(req);
 	append_uart_to_output(req);
@@ -404,7 +437,8 @@ esp_err_t cgi_status(httpd_req_t *req)
 
 esp_err_t cgi_voltages(httpd_req_t *req)
 {
-	httpd_resp_sendstr(req, "{\"system\":3.3,\"target\":3.3,\"usb\":5.0,\"debug\":3.3,\"ext\":3.3}");
+	append_voltages_to_output(req, "{", "}");
+	httpd_resp_sendstr_chunk(req, NULL);
 	return ESP_OK;
 }
 

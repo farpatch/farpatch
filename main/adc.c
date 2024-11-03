@@ -1,5 +1,6 @@
 #include "farpatch_adc.h"
 #include "general.h"
+#include "driver/temperature_sensor.h"
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
@@ -8,17 +9,43 @@
 
 #define TAG "farpatch-adc"
 
-static adc_cali_handle_t adc_cali_handle;
+#define ATTENUATION         ADC_ATTEN_DB_2_5
+#define ADC_CONSTANT_OFFSET 50
+
 static adc_oneshot_unit_handle_t adc_handle;
 static const adc_oneshot_chan_cfg_t channel_config = {
 	.bitwidth = ADC_BITWIDTH_DEFAULT,
-	.atten = ADC_ATTEN_DB_2_5,
+	.atten = ATTENUATION,
 };
 
 int32_t voltages_mv[ADC_VOLTAGE_COUNT] = {};
+
+static adc_channel_t channel_index[] = {
+	CONFIG_ADC_SYSTEM_CHANNEL,
+	CONFIG_VREF_ADC_CHANNEL,
+	CONFIG_ADC_USB_CHANNEL,
+	CONFIG_ADC_EXT_CHANNEL,
+	CONFIG_ADC_DEBUG_CHANNEL,
+};
+const char *channel_names[] = {
+	"system",
+	"vref",
+	"usb",
+	"ext",
+	"debug",
+};
+
+#if SOC_TEMP_SENSOR_SUPPORTED
+static temperature_sensor_handle_t temp_sensor = NULL;
+static const temperature_sensor_config_t temp_sensor_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(10, 70);
+float temperature;
+#endif
+
+static adc_cali_handle_t adc_cali_handle[ADC_VOLTAGE_COUNT];
 #define ADC_POLL_RATE_MS 100
 
-static bool adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_cali_handle_t *out_handle)
+static bool adc_calibration_init(
+	adc_unit_t unit, adc_channel_t channel, adc_atten_t atten, adc_cali_handle_t *out_handle)
 {
 	adc_cali_handle_t handle = NULL;
 	esp_err_t ret = ESP_FAIL;
@@ -29,6 +56,7 @@ static bool adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_cali_ha
 		ESP_LOGI(TAG, "calibration scheme version is %s", "Curve Fitting");
 		adc_cali_curve_fitting_config_t cali_config = {
 			.unit_id = unit,
+			.chan = channel,
 			.atten = atten,
 			.bitwidth = ADC_BITWIDTH_DEFAULT,
 		};
@@ -63,34 +91,47 @@ static bool adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_cali_ha
 		ESP_LOGE(TAG, "Invalid arg or no memory");
 	}
 
-	// If calibration failed, then this board just doesn't support it.
-	// Return `true` in order to prevent a memory leak from constantly
-	// reinitializing the ADC.
-	return true;
+	return calibrated;
 }
 
-static bool adc_init(adc_cali_handle_t *adc_cali_handle, adc_oneshot_unit_handle_t *adc_handle, adc_unit_t unit)
+static bool adc_init(void)
 {
 	const adc_oneshot_unit_init_cfg_t init_config = {
-		.unit_id = unit,
+		.unit_id = CONFIG_VREF_ADC_UNIT,
 	};
-	if (!adc_calibration_init(unit, ADC_ATTEN_DB_2_5, adc_cali_handle)) {
-		return false;
-	}
-	ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, adc_handle));
+	ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, &adc_handle));
 	return true;
 }
 
-int32_t adc_read_voltage(adc_channel_t channel)
+static void channel_init(enum AdcVoltageChannel voltage_index)
 {
+	adc_channel_t channel = channel_index[voltage_index];
+	ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, channel, &channel_config));
+	adc_calibration_init(CONFIG_VREF_ADC_UNIT, channel, ATTENUATION, &adc_cali_handle[voltage_index]);
+}
+
+static void update_voltage(enum AdcVoltageChannel voltage_index)
+{
+	adc_channel_t channel = channel_index[voltage_index];
 	int adc_reading;
 	int voltage_reading;
 	ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, channel, &adc_reading));
-	ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc_cali_handle, adc_reading, &voltage_reading));
+	ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc_cali_handle[voltage_index], adc_reading, &voltage_reading));
+	// ESP_LOGI(TAG, "channel %d %s adc_reading: %d  voltage_reading: %d mV (%d adjusted)", channel, channel_names[voltage_index],
+	// 	adc_reading, voltage_reading, voltage_reading * 51 / 10);
 
-	// Farpatch has a divider that's 82k on top and 20k on the bottom. We're using 2.5 dB
-	// attenuation, so also multiply it by 1.33 (aka 4/3).
-	return (voltage_reading * 4 * 82) / 20 / 3;
+	// Farpatch has a divider that's 82k on top (R1) and 20k on the bottom. (R2).
+	// To figure out the voltage Vs, we need to calculate:
+	//    Vout = (Vs*R2)/(R1+R2)
+	// Or, rearranging it,
+	//    Vs = (Vout * (R1 + R2)) / R2
+	//    Vs = Vout * (R1+R2)/R2
+	// for our purposes, (R1+R2)/R2 is a constant 5.1. Hence,
+	// we can simply multiply Vout by 10 and divide by 51.
+	//
+	// Additionally, there seems to be a constant offset. It's unclear what's causing this.
+	// Perhaps the bottom of the ADC range isn't 0 mV, but 50 mV.
+	voltages_mv[voltage_index] = (voltage_reading * 51) / 10 + ADC_CONSTANT_OFFSET;
 }
 
 void adc_task(void *ignored)
@@ -104,44 +145,59 @@ void adc_task(void *ignored)
 	}
 
 	ESP_LOGI(TAG, "ADC task started");
-	if (!adc_init(&adc_cali_handle, &adc_handle, CONFIG_VREF_ADC_UNIT)) {
+	if (!adc_init()) {
 		ESP_LOGE(TAG, "ADC init failed");
 		vTaskDelete(NULL);
 		return;
 	}
 
+#if SOC_TEMP_SENSOR_SUPPORTED
+	ESP_ERROR_CHECK(temperature_sensor_install(&temp_sensor_config, &temp_sensor));
+	ESP_ERROR_CHECK(temperature_sensor_enable(temp_sensor));
+#endif
+
 	if (CONFIG_ADC_SYSTEM_CHANNEL >= 0) {
-		ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, CONFIG_ADC_SYSTEM_CHANNEL, &channel_config));
+		channel_init(ADC_SYSTEM_VOLTAGE);
 	}
 	if (CONFIG_VREF_ADC_CHANNEL >= 0) {
-		ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, CONFIG_VREF_ADC_CHANNEL, &channel_config));
+		channel_init(ADC_TARGET_VOLTAGE);
 	}
 	if (CONFIG_ADC_USB_CHANNEL >= 0) {
-		ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, CONFIG_ADC_USB_CHANNEL, &channel_config));
+		channel_init(ADC_USB_VOLTAGE);
 	}
 	if (CONFIG_ADC_EXT_CHANNEL >= 0) {
-		ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, CONFIG_ADC_EXT_CHANNEL, &channel_config));
+		channel_init(ADC_EXT_VOLTAGE);
 	}
 	if (CONFIG_ADC_DEBUG_CHANNEL >= 0) {
-		ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, CONFIG_ADC_DEBUG_CHANNEL, &channel_config));
+		channel_init(ADC_DEBUG_VOLTAGE);
 	}
 
 	while (true) {
 		if (CONFIG_ADC_SYSTEM_CHANNEL >= 0) {
-			voltages_mv[ADC_SYSTEM_VOLTAGE] = adc_read_voltage(CONFIG_ADC_SYSTEM_CHANNEL);
+			update_voltage(ADC_SYSTEM_VOLTAGE);
 		}
 		if (CONFIG_VREF_ADC_CHANNEL >= 0) {
-			voltages_mv[ADC_TARGET_VOLTAGE] = adc_read_voltage(CONFIG_VREF_ADC_CHANNEL);
+			update_voltage(ADC_TARGET_VOLTAGE);
 		}
 		if (CONFIG_ADC_USB_CHANNEL >= 0) {
-			voltages_mv[ADC_USB_VOLTAGE] = adc_read_voltage(CONFIG_ADC_USB_CHANNEL);
+			update_voltage(ADC_USB_VOLTAGE);
 		}
 		if (CONFIG_ADC_EXT_CHANNEL >= 0) {
-			voltages_mv[ADC_EXT_VOLTAGE] = adc_read_voltage(CONFIG_ADC_EXT_CHANNEL);
+			update_voltage(ADC_EXT_VOLTAGE);
 		}
 		if (CONFIG_ADC_DEBUG_CHANNEL >= 0) {
-			voltages_mv[ADC_DEBUG_VOLTAGE] = adc_read_voltage(CONFIG_ADC_DEBUG_CHANNEL);
+			update_voltage(ADC_DEBUG_VOLTAGE);
 		}
+
+		// TODO: The docs say that " It is also possible to measure internal signals, such as VDD33."
+		// However, they do not elaborate on this statement. It's probably the case that VDD33 is
+		// available as a separate signal, however that isn't stated anywhere.
+		voltages_mv[ADC_CORE_VOLTAGE] = 3270;
+
+#if SOC_TEMP_SENSOR_SUPPORTED
+		ESP_ERROR_CHECK(temperature_sensor_get_celsius(temp_sensor, &temperature));
+#endif
+
 		vTaskDelay(ADC_POLL_RATE_MS / portTICK_PERIOD_MS);
 	}
 }

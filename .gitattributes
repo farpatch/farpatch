@@ -35,9 +35,21 @@ sdkconfig.defaults.esp32s3 text eol=lf
 *.ps1 text eol=crlf
 *.inf text eol=crlf
 
+# HTML
+*.html text eol=crlf
+*.css text eol=crlf
+*.js text eol=crlf
+
 # Other binary files
 *.png binary
 *.jpg binary
 *.bin binary
 *.elf binary
 *.bin binary
+*.ico binary
+
+# Font files
+*.eot binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
