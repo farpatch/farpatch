@@ -17,21 +17,38 @@
 
 static dedic_gpio_bundle_handle_t dedic_gpio_bundle;
 
+static void configure_gpio(int gpio)
+{
+	if (gpio == -1) {
+		return;
+	}
+
+	gpio_config_t gpio_configuration = {
+		.pin_bit_mask = (1ULL << gpio),
+		.mode = GPIO_MODE_INPUT_OUTPUT,
+		.pull_up_en = 0,
+		.pull_down_en = 0,
+		.intr_type = GPIO_INTR_DISABLE,
+	};
+	ESP_ERROR_CHECK(gpio_config(&gpio_configuration));
+}
+
+#if (CONFIG_TDI_GPIO != -1) && (CONFIG_TDO_GPIO == -1)
+#error "If TDI is defined then TDO must also be defined"
+#endif
+#if (CONFIG_TMS_SWDIO_DIR_GPIO != -1) && (CONFIG_TDO_GPIO == -1)
+#error "Cannot define TMS_SWDIO_DIR without JTAG support"
+#endif
+#if (CONFIG_TCK_TDI_DIR_GPIO != -1) && (CONFIG_TMS_SWDIO_DIR_GPIO == -1)
+#error "Having tristatable TCK without tristatable TMS is not supported"
+#endif
+
 void gpio_dedic_init(void)
 {
 	static bool initialized = false;
 	if (initialized)
 		return;
 	initialized = true;
-
-	gpio_config_t gpio_test_conf = {
-		.pin_bit_mask = (1ULL << CONFIG_TMS_SWDIO_GPIO) | (1ULL << CONFIG_TCK_SWCLK_GPIO) | (1ULL << CONFIG_TDI_GPIO) |
-	                    (1ULL << CONFIG_TDO_GPIO),
-		.mode = GPIO_MODE_INPUT_OUTPUT,
-		.pull_up_en = 0,
-		.pull_down_en = 0,
-		.intr_type = GPIO_INTR_DISABLE,
-	};
 
 	// The order of pins in this array is important, as it must match up with
 	// the definitions at the top of gpio-dedic.h.
@@ -44,29 +61,37 @@ void gpio_dedic_init(void)
 		CONFIG_TCK_TDI_DIR_GPIO,
 	};
 
+	configure_gpio(CONFIG_TMS_SWDIO_GPIO);
+	configure_gpio(CONFIG_TCK_SWCLK_GPIO);
+	configure_gpio(CONFIG_TDO_GPIO);
+	configure_gpio(CONFIG_TDI_GPIO);
+	configure_gpio(CONFIG_TMS_SWDIO_DIR_GPIO);
+	configure_gpio(CONFIG_TCK_TDI_DIR_GPIO);
+
 	dedic_gpio_bundle_config_t dedic_config = {
 		.gpio_array = dedic_pin_array,
-		.array_size = 4, // Omit TCK_TDI_DIR and TCK_DIF for now
+		.array_size = 2, // Omit JTAG, TCK_TDI_DIR, and TCK_DIF for now
 		.flags = {.out_en = 1, .in_en = 1},
 	};
 
-	if (CONFIG_TMS_SWDIO_DIR_GPIO != -1) {
-		gpio_test_conf.pin_bit_mask |= (1ULL << (CONFIG_TMS_SWDIO_DIR_GPIO & 63));
-		dedic_config.array_size += 1;
-		if (CONFIG_TCK_TDI_DIR_GPIO != -1) {
-			gpio_test_conf.pin_bit_mask |= (1ULL << (CONFIG_TCK_TDI_DIR_GPIO & 63));
+	if ((CONFIG_TDI_GPIO != -1) && (CONFIG_TDO_GPIO != -1)) {
+		dedic_config.array_size += 2;
+		if (CONFIG_TMS_SWDIO_DIR_GPIO != -1) {
 			dedic_config.array_size += 1;
+			if (CONFIG_TCK_TDI_DIR_GPIO != -1) {
+				dedic_config.array_size += 1;
+			}
 		}
 	}
 
-	ESP_ERROR_CHECK(gpio_config(&gpio_test_conf));
 	ESP_ERROR_CHECK(dedic_gpio_new_bundle(&dedic_config, &dedic_gpio_bundle));
 
 	if (CONFIG_TMS_SWDIO_DIR_GPIO != -1) {
+		// Enable driving TMS/SWDIO
 		dedic_gpio_cpu_ll_write_mask(SWDIO_TMS_DIR_DEDIC_MASK, 0);
 		gpio_ll_input_enable(GPIO_HAL_GET_HW(GPIO_PORT_0), CONFIG_TMS_SWDIO_GPIO);
 
-		// Enable the clock, if that pin is connected
+		// Enable the clock, if that pin exists
 		if (CONFIG_TCK_TDI_DIR_GPIO != -1) {
 			dedic_gpio_cpu_ll_write_mask(SWCLK_DIR_DEDIC_MASK, 0);
 		}
