@@ -133,13 +133,16 @@ void swo_listen_task(void *ignored)
 	assert(setsockopt(swo_server, IPPROTO_TCP, TCP_NODELAY, (void *)&opt, sizeof(opt)) != -1);
 
 	assert(bind(swo_server, (struct sockaddr *)&addr, sizeof(addr)) != -1);
-	assert(listen(swo_server, 1) != -1);
+	assert(listen(swo_server, 5) != -1);
 
 	ESP_LOGI(TAG, "swo server listening on port %d", CONFIG_SWO_TCP_PORT);
 
 	while (1) {
-		int s = accept(swo_server, NULL, NULL);
-		if (s <= 0) {
+		struct sockaddr_storage source_addr;
+		socklen_t addr_len = sizeof(source_addr);
+		int s = accept(swo_server, (struct sockaddr *)&source_addr, &addr_len);
+		if (s < 0) {
+			ESP_LOGE(TAG, "Unable to accept connection: errno %d", errno);
 			continue;
 		}
 
@@ -154,9 +157,20 @@ void swo_listen_task(void *ignored)
 			}
 		}
 		if (!found) {
-			ESP_LOGE("swo", "unable to accept connection %d because connection table is full", s);
+			ESP_LOGE(TAG, "unable to accept connection %d because connection table is full", s);
 			close(s);
+			continue;
 		}
+
+		// Convert ip address to string
+		char addr_str[128] = {};
+		if (source_addr.ss_family == PF_INET) {
+			inet_ntoa_r(((struct sockaddr_in *)&source_addr)->sin_addr, addr_str, sizeof(addr_str) - 1);
+		}
+		if (source_addr.ss_family == PF_INET6) {
+			inet6_ntoa_r(((struct sockaddr_in6 *)&source_addr)->sin6_addr, addr_str, sizeof(addr_str) - 1);
+		}
+		ESP_LOGI(TAG, "client connected from %s", addr_str);
 	}
 }
 
@@ -195,16 +209,24 @@ void swo_init(const swo_coding_e swo_mode, const uint32_t baudrate, const uint32
 
 	/* Now determine which mode to enable and initialise it */
 #if SWO_ENCODING == 1 || SWO_ENCODING == 3
-	if (swo_mode == swo_manchester)
-		swo_manchester_init();
+	if (swo_mode == swo_manchester) {
+#if SWO_ENCODING == 2 || SWO_ENCODING == 3
+		if (swo_current_mode == swo_nrz_uart) {
+			swo_uart_deinit();
+		}
 #endif
+		swo_manchester_init();
+	}
+#endif
+
 #if SWO_ENCODING == 2 || SWO_ENCODING == 3
 	if (swo_mode == swo_nrz_uart) {
-		/* Ensure the baud rate is something sensible */
-		swo_uart_init(baudrate ? baudrate : SWO_DEFAULT_BAUD);
-		uint32_t detected_baudrate = swo_uart_get_baudrate();
-		gdb_outf("Baudrate: %" PRIu32 " ", detected_baudrate);
-		ESP_LOGI(TAG, "starting SWO with baudrate %" PRId32, detected_baudrate);
+#if SWO_ENCODING == 2 || SWO_ENCODING == 3
+		if (swo_current_mode == swo_manchester) {
+			swo_manchester_deinit();
+		}
+#endif
+		swo_uart_init(baudrate);
 	}
 #endif
 	/* Make a note of which mode we initialised into */
