@@ -329,6 +329,9 @@ static void append_voltages_to_output(httpd_req_t *req, const char *prefix, cons
 	// Voltages
 	httpd_resp_sendstr_chunk(req, prefix);
 	snprintf(buffer, sizeof(buffer) - 1,
+#if SOC_TEMP_SENSOR_SUPPORTED
+		"\"temperature\": %f,"
+#endif
 #if defined(CONFIG_VREF_ADC_CHANNEL) && CONFIG_VREF_ADC_CHANNEL >= 0
 		"\"target\": %" PRIu32 ","
 #endif
@@ -345,6 +348,9 @@ static void append_voltages_to_output(httpd_req_t *req, const char *prefix, cons
 		"\"system\": %" PRIu32 ","
 #endif
 		"\"core\": %" PRIu32 "",
+#if SOC_TEMP_SENSOR_SUPPORTED
+		temperature,
+#endif
 #if defined(CONFIG_VREF_ADC_CHANNEL) && CONFIG_VREF_ADC_CHANNEL >= 0
 		voltages_mv[ADC_TARGET_VOLTAGE],
 #endif

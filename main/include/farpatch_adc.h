@@ -16,4 +16,8 @@ enum AdcVoltageChannel {
 extern int32_t voltages_mv[ADC_VOLTAGE_COUNT];
 void adc_task(void *ignored);
 
+#if SOC_TEMP_SENSOR_SUPPORTED
+extern float temperature;
+#endif
+
 #endif /* FARPATCH_ADC_H__ */

@@ -9,7 +9,7 @@
 
 #define TAG "farpatch-adc"
 
-#define ATTENUATION ADC_ATTEN_DB_2_5
+#define ATTENUATION         ADC_ATTEN_DB_2_5
 #define ADC_CONSTANT_OFFSET 50
 
 static adc_oneshot_unit_handle_t adc_handle;
@@ -19,7 +19,6 @@ static const adc_oneshot_chan_cfg_t channel_config = {
 };
 
 int32_t voltages_mv[ADC_VOLTAGE_COUNT] = {};
-float temperature;
 
 static adc_channel_t channel_index[] = {
 	CONFIG_ADC_SYSTEM_CHANNEL,
@@ -36,8 +35,11 @@ const char *channel_names[] = {
 	"debug",
 };
 
+#if SOC_TEMP_SENSOR_SUPPORTED
 static temperature_sensor_handle_t temp_sensor = NULL;
 static const temperature_sensor_config_t temp_sensor_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(10, 70);
+float temperature;
+#endif
 
 static adc_cali_handle_t adc_cali_handle[ADC_VOLTAGE_COUNT];
 #define ADC_POLL_RATE_MS 100
@@ -149,8 +151,10 @@ void adc_task(void *ignored)
 		return;
 	}
 
+#if SOC_TEMP_SENSOR_SUPPORTED
 	ESP_ERROR_CHECK(temperature_sensor_install(&temp_sensor_config, &temp_sensor));
 	ESP_ERROR_CHECK(temperature_sensor_enable(temp_sensor));
+#endif
 
 	if (CONFIG_ADC_SYSTEM_CHANNEL >= 0) {
 		channel_init(ADC_SYSTEM_VOLTAGE);
@@ -190,7 +194,9 @@ void adc_task(void *ignored)
 		// available as a separate signal, however that isn't stated anywhere.
 		voltages_mv[ADC_CORE_VOLTAGE] = 3270;
 
+#if SOC_TEMP_SENSOR_SUPPORTED
 		ESP_ERROR_CHECK(temperature_sensor_get_celsius(temp_sensor, &temperature));
+#endif
 
 		vTaskDelay(ADC_POLL_RATE_MS / portTICK_PERIOD_MS);
 	}
