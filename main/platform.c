@@ -105,18 +105,22 @@ uint32_t platform_max_frequency_get(void)
 
 void platform_init(void)
 {
+#if defined(CONFIG_TDI_GPIO) && CONFIG_TDI_GPIO >= 0
 	gpio_reset_pin(CONFIG_TDI_GPIO);
+#endif
+#if defined(CONFIG_TDO_GPIO) && CONFIG_TDO_GPIO >= 0
 	gpio_reset_pin(CONFIG_TDO_GPIO);
+#endif
 	gpio_reset_pin(CONFIG_TMS_SWDIO_GPIO);
 	gpio_reset_pin(CONFIG_TCK_SWCLK_GPIO);
-#if CONFIG_TMS_SWDIO_DIR_GPIO >= 0
+#if defined(CONFIG_TMS_SWDIO_DIR_GPIO) && CONFIG_TMS_SWDIO_DIR_GPIO >= 0
 	gpio_reset_pin(CONFIG_TMS_SWDIO_DIR_GPIO);
 #endif
-#if CONFIG_TCK_TDI_DIR_GPIO >= 0
+#if defined(CONFIG_TCK_TDI_DIR_GPIO) && CONFIG_TCK_TDI_DIR_GPIO >= 0
 	gpio_reset_pin(CONFIG_TCK_TDI_DIR_GPIO);
 #endif
 
-#if CONFIG_VREF_ADC_GPIO >= 0
+#if defined(CONFIG_VREF_ADC_GPIO) && CONFIG_VREF_ADC_GPIO >= 0
 	gpio_reset_pin(CONFIG_VREF_ADC_GPIO);
 #endif
 
@@ -140,6 +144,7 @@ void platform_init(void)
 	}
 #endif
 
+#if defined(CONFIG_TDO_GPIO) && CONFIG_TDO_GPIO >= 0
 	// TDO / SWO
 	{
 		const gpio_config_t gpio_conf = {
@@ -151,6 +156,7 @@ void platform_init(void)
 		};
 		gpio_config(&gpio_conf);
 	}
+#endif
 
 	// TMS / SWDIO
 	{
@@ -178,6 +184,7 @@ void platform_init(void)
 		gpio_set_level(CONFIG_TCK_SWCLK_GPIO, 1);
 	}
 
+#if defined(CONFIG_NRST_GPIO) && CONFIG_NRST_GPIO >= 0
 	// NRST
 	{
 		const gpio_config_t gpio_conf = {
@@ -195,8 +202,9 @@ void platform_init(void)
 #endif
 		gpio_config(&gpio_conf);
 	}
+#endif
 
-#if CONFIG_RESET_SENSE_GPIO >= 0
+#if defined(CONFIG_RESET_SENSE_GPIO) && CONFIG_RESET_SENSE_GPIO >= 0
 	// TMS/SWDIO level shifter direction
 	{
 		const gpio_config_t gpio_conf = {
@@ -210,7 +218,8 @@ void platform_init(void)
 	}
 #endif
 
-	// TDI / SWDIO
+	// TDI
+#if defined(CONFIG_TDI_GPIO) && CONFIG_TDI_GPIO >= 0
 	{
 		const gpio_config_t gpio_conf = {
 			.pin_bit_mask = BIT64(CONFIG_TDI_GPIO),
@@ -222,8 +231,9 @@ void platform_init(void)
 		gpio_config(&gpio_conf);
 		gpio_set_level(CONFIG_TDI_GPIO, 1);
 	}
+#endif
 
-#if CONFIG_TMS_SWDIO_DIR_GPIO >= 0
+#if defined(CONFIG_TMS_SWDIO_DIR_GPIO) && CONFIG_TMS_SWDIO_DIR_GPIO >= 0
 	// TMS/SWDIO level shifter direction
 	{
 		const gpio_config_t gpio_conf = {
