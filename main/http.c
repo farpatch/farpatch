@@ -14,6 +14,7 @@
 #include "http_api.h"
 #include "ota-http.h"
 #include "farpatch_adc.h"
+#include "swo.h"
 #include "websocket.h"
 #include "wifi.h"
 #include "driver/uart.h"
@@ -157,10 +158,9 @@ static esp_err_t cgi_system_status_header(httpd_req_t *req)
 
 	uint32_t target_baud = 0;
 	uint32_t swo_baud = 0;
-	uart_get_baudrate(1, &target_baud);
-	extern int swo_active;
-	if (swo_active) {
-		uart_get_baudrate(2, &swo_baud);
+	uart_get_baudrate(TARGET_UART_IDX, &target_baud);
+	if (swo_current_mode == swo_nrz_uart) {
+		uart_get_baudrate(SWO_UART_IDX, &swo_baud);
 	}
 
 	snprintf(buffer, sizeof(buffer),

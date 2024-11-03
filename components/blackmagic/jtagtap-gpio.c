@@ -42,8 +42,59 @@ static IRAM_ATTR void jtagtap_tdi_seq(const bool final_tms, const uint8_t *DI, s
 static IRAM_ATTR bool jtagtap_next(const bool dTMS, const bool dTDI);
 static IRAM_ATTR void jtagtap_cycle(const bool tms, const bool tdi, const size_t clock_cycles);
 
+static void dummy_reset(void)
+{
+}
+
+static void dummy_tms_seq(uint32_t MS, size_t ticks)
+{
+	(void)MS;
+	(void)ticks;
+}
+static void dummy_tdi_tdo_seq(uint8_t *DO, const bool final_tms, const uint8_t *DI, size_t ticks)
+{
+	(void)DO;
+	(void)final_tms;
+	(void)DI;
+	(void)ticks;
+}
+
+static void dummy_tdi_seq(const bool final_tms, const uint8_t *DI, size_t ticks)
+{
+	(void)final_tms;
+	(void)DI;
+	(void)ticks;
+}
+
+static bool dummy_next(const bool dTMS, const bool dTDI)
+{
+	(void)dTMS;
+	(void)dTDI;
+	return false;
+}
+
+static void dummy_cycle(const bool tms, const bool tdi, const size_t clock_cycles)
+{
+	(void)tms;
+	(void)tdi;
+	(void)clock_cycles;
+}
+
 void jtagtap_init(void)
 {
+	if ((CONFIG_TDI_GPIO == -1) || (CONFIG_TDO_GPIO == -1)) {
+		gdb_outf("jtag not supported on this board\n");
+		ESP_LOGE("jtag", "TDI and TDO pins are not configured on this board");
+		jtag_proc.jtagtap_reset = dummy_reset;
+		jtag_proc.jtagtap_next = dummy_next;
+		jtag_proc.jtagtap_tms_seq = dummy_tms_seq;
+		jtag_proc.jtagtap_tdi_tdo_seq = dummy_tdi_tdo_seq;
+		jtag_proc.jtagtap_tdi_seq = dummy_tdi_seq;
+		jtag_proc.jtagtap_cycle = dummy_cycle;
+		jtag_proc.tap_idle_cycles = 1;
+		return;
+	}
+
 	gpio_reset_pin(CONFIG_TDI_GPIO);
 	gpio_reset_pin(CONFIG_TDO_GPIO);
 	gpio_reset_pin(CONFIG_TMS_SWDIO_GPIO);

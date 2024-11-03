@@ -213,6 +213,12 @@ menu "Farpatch Configuration"
         help
         UART will listen on this port for UDP connections. Use -1 to disable.
 
+    config SWO_TCP_PORT
+        int "TCP port number for SWO access"
+        default 3443
+        help
+        Raw SWO data will be made available on this port. Use -1 to disable.
+
     config PRODUCT_NAME
         string "Product Name"
         default "farpatch"

@@ -1,10 +1,10 @@
+#include <driver/uart.h>
 #include <esp_http_server.h>
-#include "lwip/sockets.h"
-#include "websocket.h"
-#include "driver/uart.h"
-#include "uart.h"
-
 #include <esp_log.h>
+#include <lwip/sockets.h>
+#include "platform.h"
+#include "websocket.h"
+
 
 // The Websocket API doesn't provide any way to generate control packets, including
 // PING packets. To work around this, define our own concept of commands rather than
