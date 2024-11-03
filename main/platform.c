@@ -120,10 +120,6 @@ void platform_init(void)
 	gpio_reset_pin(CONFIG_TCK_TDI_DIR_GPIO);
 #endif
 
-#if defined(CONFIG_VREF_ADC_GPIO) && CONFIG_VREF_ADC_GPIO >= 0
-	gpio_reset_pin(CONFIG_VREF_ADC_GPIO);
-#endif
-
 	// Reset Button
 #if defined(CONFIG_RESET_BUTTON_GPIO) && CONFIG_RESET_BUTTON_GPIO >= 0
 	{
@@ -511,7 +507,6 @@ void app_main(void)
 	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));
 	void swo_listen_task(void *);
 	xTaskCreate(swo_listen_task, "swo listen", 2000, NULL, 1, NULL);
-
 
 #ifdef CONFIG_RESET_TARGET_ON_BOOT
 	ESP_LOGI(TAG, "resetting target on boot");
