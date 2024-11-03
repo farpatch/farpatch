@@ -497,7 +497,7 @@ void app_main(void)
 
 	ESP_LOGI(TAG, "starting gdb server");
 	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));
-	xTaskCreate(gdb_net_task, "gdb_net", 2000, NULL, 1, NULL);
+	xTaskCreate(gdb_net_task, "gdb_net", 2000, NULL, 3, NULL);
 
 	ESP_LOGI(TAG, "starting tftp server");
 	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));
@@ -506,7 +506,7 @@ void app_main(void)
 	ESP_LOGI(TAG, "starting swo server");
 	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));
 	void swo_listen_task(void *);
-	xTaskCreate(swo_listen_task, "swo listen", 2000, NULL, 1, NULL);
+	xTaskCreate(swo_listen_task, "swo listen", 2000, NULL, 4, NULL);
 
 #ifdef CONFIG_RESET_TARGET_ON_BOOT
 	ESP_LOGI(TAG, "resetting target on boot");
