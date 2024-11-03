@@ -15,11 +15,14 @@
 #define SWO_UART_RECALCULATE_BAUD 0x1000
 #define SWO_UART_TERMINATE        0x1001
 
+#define SWO_AUTOBAUD_SAMPLES       100
+#define SWO_AUTOBAUD_MAXIMUM_TRIES 100000
+
 static const char TAG[] = "swo-uart";
 
 static TaskHandle_t rx_pid;
 static volatile bool should_exit_calibration;
-QueueHandle_t swo_uart_event_queue;
+static QueueHandle_t swo_uart_event_queue;
 
 #if defined(ESP32S3)
 static esp_err_t uart_reset_rx_fifo(uart_port_t uart_num)
@@ -58,74 +61,66 @@ uint32_t swo_uart_get_baudrate(void)
 
 static int32_t uart_baud_detect(uart_port_t uart_num, int sample_bits, int max_tries)
 {
-	int low_period = 0;
-	int high_period = 0;
 	int tries = 0;
 
+	uint32_t sclk_freq = uart_get_clk_frequency(&SWO_UART);
 	uint32_t intena_reg = uart_ll_get_intr_ena_status(&SWO_UART);
+
+	// Reset the whole UART -- this is required  to clear the
+	// various autobaud counters.
+	uart_ll_enable_bus_clock(uart_num, true);
+	uart_ll_reset_register(uart_num);
 
 	// Disable the interruput.
 	uart_ll_disable_intr_mask(&SWO_UART, ~0);
 	uart_ll_clr_intsts_mask(&SWO_UART, ~0);
 
-	// Filter
-	//	&SWO_UART->auto_baud.glitch_filt = 4;
-
 	// Clear the previous result
 	uart_ll_set_autobaud_en(&SWO_UART, false);
+	vTaskDelay(pdMS_TO_TICKS(10));
 	uart_ll_set_autobaud_en(&SWO_UART, true);
-	ESP_LOGI(__func__, "waiting for %d samples", sample_bits);
+
 	while (uart_ll_get_rxd_edge_cnt(&SWO_UART) < sample_bits) {
 		if (tries++ >= max_tries) {
 			// Disable the baudrate detection
 			uart_ll_set_autobaud_en(&SWO_UART, false);
 
 			// Reset the fifo
-			ESP_LOGD(__func__, "resetting the fifo");
+			ESP_LOGD(TAG, "Autobaud detection failed");
 			uart_reset_rx_fifo(uart_num);
 			uart_ll_ena_intr_mask(&SWO_UART, intena_reg);
-			return -1;
+			return 0;
 		}
 		vTaskDelay(pdMS_TO_TICKS(10));
-		// esp_task_wdt_reset();
-		// ets_delay_us(10);
 	}
-	low_period = uart_ll_get_low_pulse_cnt(&SWO_UART);
-	high_period = uart_ll_get_high_pulse_cnt(&SWO_UART);
+	// int edge_cnt = uart_ll_get_rxd_edge_cnt(&SWO_UART);
+	// int pospulse_cnt = uart_ll_get_pos_pulse_cnt(&SWO_UART);
+	// int negpulse_cnt = uart_ll_get_neg_pulse_cnt(&SWO_UART);
+	int high_pulse_cnt = uart_ll_get_high_pulse_cnt(&SWO_UART);
+	int low_pulse_cnt = uart_ll_get_low_pulse_cnt(&SWO_UART);
 
-	ESP_LOGI(TAG, "Observed %d low and %d high pulses", low_period, high_period);
+	int32_t detected_baudrate = sclk_freq / ((low_pulse_cnt + high_pulse_cnt + 2) / 2);
+	// ESP_LOGI(TAG, "Edge count: %d", edge_cnt);
+	// ESP_LOGI(TAG, "Positive pulse count: %d", pospulse_cnt);
+	// ESP_LOGI(TAG, "Negative pulse count: %d", negpulse_cnt);
+	// ESP_LOGI(TAG, "High pulse count: %d", high_pulse_cnt);
+	// ESP_LOGI(TAG, "Low pulse count: %d", low_pulse_cnt);
+	// ESP_LOGI(TAG, "Sclk frequency: %" PRId32, sclk_freq);
+	// ESP_LOGI(TAG, "Detected frequency: %" PRId32, detected_baudrate);
 
 	// Disable the baudrate detection
 	uart_ll_set_autobaud_en(&SWO_UART, false);
 
 	// Reset the fifo
-	ESP_LOGD(__func__, "resetting the fifo");
 	uart_reset_rx_fifo(uart_num);
 	uart_ll_ena_intr_mask(&SWO_UART, intena_reg);
 
-	// Set the clock divider reg
-
-	// ~~ MAGIC ~~
-	uint32_t sclk_freq = uart_get_clk_frequency(&SWO_UART);
-	// SWO_UART.clkdiv.clkdiv = (low_period > high_period) ? high_period : low_period;
-	return uart_ll_get_baudrate(&SWO_UART, sclk_freq);
+	return detected_baudrate;
 }
 
-/**
- * @brief UART Receive Task
- *
- */
-static void swo_uart_rx_task(void *arg)
+static uint32_t uart_reconfigure(uint32_t baud_rate)
 {
-	uint32_t default_baud = (uint32_t)arg;
-	int baud_rate = default_baud;
 	esp_err_t ret;
-	uint8_t buf[256];
-	int bufpos = 0;
-
-	if (baud_rate == 0) {
-		baud_rate = 115200;
-	}
 
 	ret = uart_set_pin(SWO_UART_IDX, UART_PIN_NO_CHANGE, CONFIG_TDO_GPIO, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 	if (ret != ESP_OK) {
@@ -140,12 +135,6 @@ static void swo_uart_rx_task(void *arg)
 		.stop_bits = UART_STOP_BITS_1,
 		.flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
 	};
-	ret = uart_driver_install(SWO_UART_IDX, 4096, 256, 16, &swo_uart_event_queue, 0);
-	if (ret != ESP_OK) {
-		ESP_LOGE(TAG, "unable to install SWO UART driver: %s", esp_err_to_name(ret));
-		goto out;
-	}
-
 	ret = uart_param_config(SWO_UART_IDX, &uart_config);
 	if (ret != ESP_OK) {
 		ESP_LOGE(TAG, "unable to configure SWO UART driver: %s", esp_err_to_name(ret));
@@ -166,13 +155,43 @@ static void swo_uart_rx_task(void *arg)
 		goto out;
 	}
 
-	if (default_baud == 0) {
+	if (baud_rate == 0) {
 		ESP_LOGI(TAG, "baud rate not specified, initiating autobaud detection");
-		baud_rate = uart_baud_detect(SWO_UART_IDX, 20, 10);
-		ESP_LOGI(TAG, "baud rate detected as %d", baud_rate);
+		baud_rate = uart_baud_detect(SWO_UART_IDX, SWO_AUTOBAUD_SAMPLES, SWO_AUTOBAUD_MAXIMUM_TRIES);
+		ESP_LOGI(TAG, "baud rate detected as %" PRId32, baud_rate);
+		// Recursion -- as long as this is not zero, this will only recurse once.
+		if (baud_rate != 0) {
+			return uart_reconfigure(baud_rate);
+		}
 	}
 
-	ESP_LOGI(TAG, "UART driver started with baud rate of %d, beginning reception...", baud_rate);
+	return baud_rate;
+
+out:
+	uart_driver_delete(SWO_UART_IDX);
+	rx_pid = NULL;
+	vTaskDelete(NULL);
+	return 0;
+}
+
+/**
+ * @brief UART Receive Task
+ *
+ */
+static void swo_uart_rx_task(void *arg)
+{
+	esp_err_t ret;
+	uint8_t uart_data[256];
+
+	ret = uart_driver_install(SWO_UART_IDX, 4096, 256, 16, &swo_uart_event_queue, ESP_INTR_FLAG_IRAM);
+	if (ret != ESP_OK) {
+		ESP_LOGE(TAG, "unable to install SWO UART driver: %s", esp_err_to_name(ret));
+		goto out;
+	}
+
+	uint32_t baud_rate = uart_reconfigure((uint32_t)arg);
+
+	ESP_LOGI(TAG, "UART driver started with baud rate of %" PRId32 ", beginning reception...", swo_uart_get_baudrate());
 
 	while (1) {
 		uart_event_t evt;
@@ -186,57 +205,44 @@ static void swo_uart_rx_task(void *arg)
 			}
 			if (evt.type == UART_BUFFER_FULL) {
 				// uart_queue_full_cnt++;
+				ESP_LOGI(TAG, "UART FIFO is full");
 			}
 
 			if (evt.type == SWO_UART_TERMINATE) {
 				break;
 			}
 
-			if (baud_rate == -1 || evt.type == SWO_UART_RECALCULATE_BAUD) {
-				esp_err_t ret = uart_set_pin(
-					SWO_UART_IDX, UART_PIN_NO_CHANGE, CONFIG_TDO_GPIO, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-				if (ret != ESP_OK) {
-					ESP_LOGE(TAG, "unable to configure SWO UART pin: %s", esp_err_to_name(ret));
-					goto out;
-				}
+			if (baud_rate == 0 || evt.type == SWO_UART_RECALCULATE_BAUD) {
+				// esp_err_t ret = uart_set_pin(
+				// 	SWO_UART_IDX, UART_PIN_NO_CHANGE, CONFIG_TDO_GPIO, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+				// if (ret != ESP_OK) {
+				// 	ESP_LOGE(TAG, "unable to configure SWO UART pin: %s", esp_err_to_name(ret));
+				// 	goto out;
+				// }
 
 				if ((evt.size != 0) && (evt.type == SWO_UART_RECALCULATE_BAUD)) {
 					baud_rate = evt.size;
-					ESP_LOGI(TAG, "setting baud rate to %d", baud_rate);
+					ESP_LOGI(TAG, "setting baud rate to %" PRIu32, baud_rate);
 					uart_set_baudrate(SWO_UART_IDX, baud_rate);
 				} else {
-					ESP_LOGD(TAG, "detecting baud rate");
-					baud_rate = uart_baud_detect(SWO_UART_IDX, 20, 50);
-					ESP_LOGI(TAG, "baud rate detected as %d", baud_rate);
+					baud_rate = uart_reconfigure(0);
 				}
 			}
 
-			bufpos = uart_read_bytes(SWO_UART_IDX, &buf[bufpos], sizeof(buf) - bufpos, 0);
+			size_t bytes_read = uart_read_bytes(SWO_UART_IDX, uart_data, sizeof(uart_data), 0);
 
-			if (bufpos > 0) {
-				char logstr[bufpos * 3 + 1];
-				memset(logstr, 0, sizeof(logstr));
-				int j;
-				for (j = 0; j < bufpos; j++) {
-					sprintf(logstr + (j * 3), " %02x", buf[j]);
-				}
-				ESP_LOGI(TAG, "uart has rx %d bytes: %s", bufpos, logstr);
-				// uart_rx_count += bufpos;
-				// http_term_broadcast_data(buf, bufpos);
-
-				bufpos = 0;
-			} // if(bufpos)
-		} else if (baud_rate == -1) {
-			esp_err_t ret =
-				uart_set_pin(SWO_UART_IDX, UART_PIN_NO_CHANGE, CONFIG_TDO_GPIO, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-			if (ret != ESP_OK) {
-				ESP_LOGE(TAG, "unable to configure SWO UART pin: %s", esp_err_to_name(ret));
-				goto out;
+			if (bytes_read > 0) {
+				swo_post(uart_data, bytes_read);
+				// char logstr[bytes_read * 3 + 1];
+				// memset(logstr, 0, sizeof(logstr));
+				// int j;
+				// for (j = 0; j < bytes_read; j++) {
+				// 	sprintf(logstr + (j * 3), " %02x", uart_data[j]);
+				// }
+				// ESP_LOGI(TAG, "uart has rx %d bytes: %s", bytes_read, logstr);
 			}
-
-			ESP_LOGD(TAG, "detecting baud rate");
-			baud_rate = uart_baud_detect(SWO_UART_IDX, 20, 50);
-			ESP_LOGI(TAG, "baud rate detected as %d", baud_rate);
+		} else if (baud_rate == 0) {
+			baud_rate = uart_reconfigure(0);
 		}
 	}
 
@@ -249,7 +255,7 @@ out:
 void swo_uart_set_baudrate(unsigned int baud)
 {
 	uart_event_t msg;
-	msg.type = 0x1000;
+	msg.type = SWO_UART_RECALCULATE_BAUD;
 	msg.size = baud;
 	xQueueSend(swo_uart_event_queue, &msg, portMAX_DELAY);
 }
@@ -270,7 +276,7 @@ void swo_uart_deinit(void)
 void swo_uart_init(const uint32_t baudrate)
 {
 	if (!rx_pid) {
-		ESP_LOGI(TAG, "initializing swo");
+		ESP_LOGI(TAG, "initializing swo with baudrate of %" PRId32, baudrate);
 		xTaskCreate(swo_uart_rx_task, "swo_rx_task", 2048, (void *)baudrate, 10, &rx_pid);
 	} else {
 		ESP_LOGI(TAG, "swo already initialized, reinitializing...");
