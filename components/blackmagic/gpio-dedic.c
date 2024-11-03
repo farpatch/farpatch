@@ -34,7 +34,7 @@ void gpio_dedic_init(void)
 	};
 
 	// The order of pins in this array is important, as it must match up with
-	// the definitions at the top of this file.
+	// the definitions at the top of gpio-dedic.h.
 	int dedic_pin_array[] = {
 		CONFIG_TMS_SWDIO_GPIO,
 		CONFIG_TCK_SWCLK_GPIO,
@@ -46,7 +46,7 @@ void gpio_dedic_init(void)
 
 	dedic_gpio_bundle_config_t dedic_config = {
 		.gpio_array = dedic_pin_array,
-		.array_size = 4, // Omit TCK_TDI_DIR for now
+		.array_size = 4, // Omit TCK_TDI_DIR and TCK_DIF for now
 		.flags = {.out_en = 1, .in_en = 1},
 	};
 

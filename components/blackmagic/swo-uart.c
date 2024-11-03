@@ -93,6 +93,8 @@ static int32_t uart_baud_detect(uart_port_t uart_num, int sample_bits, int max_t
 	low_period = uart_ll_get_low_pulse_cnt(&SWO_UART);
 	high_period = uart_ll_get_high_pulse_cnt(&SWO_UART);
 
+	ESP_LOGI(TAG, "Observed %d low and %d high pulses", low_period, high_period);
+
 	// Disable the baudrate detection
 	uart_ll_set_autobaud_en(&SWO_UART, false);
 
@@ -102,8 +104,11 @@ static int32_t uart_baud_detect(uart_port_t uart_num, int sample_bits, int max_t
 	uart_ll_ena_intr_mask(&SWO_UART, intena_reg);
 
 	// Set the clock divider reg
-	SWO_UART.clkdiv.clkdiv = (low_period > high_period) ? high_period : low_period;
-	return swo_uart_get_baudrate();
+
+	// ~~ MAGIC ~~
+	uint32_t sclk_freq = uart_get_clk_frequency(&SWO_UART);
+	// SWO_UART.clkdiv.clkdiv = (low_period > high_period) ? high_period : low_period;
+	return uart_ll_get_baudrate(&SWO_UART, sclk_freq);
 }
 
 /**

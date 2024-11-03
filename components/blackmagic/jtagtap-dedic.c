@@ -37,8 +37,9 @@
 
 jtag_proc_s jtag_proc;
 
-#define CLK_HIGH()   dedic_gpio_cpu_ll_write_mask(SWCLK_DEDIC_MASK, SWCLK_DEDIC_MASK)
-#define CLK_LOW()    dedic_gpio_cpu_ll_write_mask(SWCLK_DEDIC_MASK, 0)
+#define CLK_HIGH() RV_SET_CSR(CSR_GPIO_OUT_USER, SWCLK_DEDIC_MASK)
+#define CLK_LOW()  RV_CLEAR_CSR(CSR_GPIO_OUT_USER, SWCLK_DEDIC_MASK)
+
 #define SET_TMS(val) dedic_gpio_cpu_ll_write_mask(SWDIO_TMS_DEDIC_MASK, (val) << SWDIO_TMS_DEDIC_PIN)
 #define SET_TDI(val) dedic_gpio_cpu_ll_write_mask(JTAG_TDI_DEDIC_MASK, (val) << JTAG_TDI_DEDIC_PIN)
 #define SET_TMS_TDI(tms, tdi)     \
