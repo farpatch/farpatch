@@ -4,8 +4,8 @@
 #include "esp_log.h"
 #include <driver/rmt_rx.h>
 #include "platform.h"
+#include "swo.h"
 #include "swo-manchester.h"
-void swo_post(void *data, size_t len);
 
 static rmt_channel_handle_t rx_channel = NULL;
 static const char TAG[] = "swo-manchester";
@@ -13,6 +13,7 @@ static TaskHandle_t rx_pid;
 
 #define SWO_MANCHESTER_FREQ_HZ 20 * 1000 * 1000 // 20MHz resolution, 1 tick = 50ns
 #define SWO_IRQ_INDEX          0
+#define SWO_MANCHESTER_WORDS   SOC_RMT_MEM_WORDS_PER_CHANNEL
 
 struct Manchester {
 	bool previous : 1;
@@ -46,7 +47,7 @@ struct RmtState {
 	uint16_t bit_time;
 	uint8_t ring_buffer[1024];
 	uint16_t buffer_length;
-	rmt_symbol_word_t raw_symbols[1024];
+	rmt_symbol_word_t raw_symbols[SWO_MANCHESTER_WORDS];
 	bool is_stopped;
 	struct Manchester manchester;
 	struct Accumulator accumulator;
@@ -245,8 +246,7 @@ void swo_manchester_init(void)
 	rmt_rx_channel_config_t rx_channel_cfg = {
 		.clk_src = RMT_CLK_SRC_DEFAULT,
 		.resolution_hz = SWO_MANCHESTER_FREQ_HZ,
-		.mem_block_symbols = 1024,
-		.flags.with_dma = true,
+		.mem_block_symbols = SWO_MANCHESTER_WORDS,
 		.gpio_num = CONFIG_TDO_GPIO,
 	};
 
@@ -266,7 +266,7 @@ void swo_manchester_init(void)
 
 	// ready to receive
 	if (!rx_pid) {
-		xTaskCreate(swo_manchester_rx_task, "swo_m_rx_task", 4096, &rmt_state, 1, &rx_pid);
+		xTaskCreate(swo_manchester_rx_task, "swo_m_rx_task", 4096, &rmt_state, 10, &rx_pid);
 	}
 }
 
@@ -276,10 +276,10 @@ void swo_manchester_deinit(void)
 		ESP_LOGE(TAG, "manchester mode not initialized");
 	}
 	if (rx_pid) {
+		ESP_ERROR_CHECK(rmt_disable(rx_channel));
+		ESP_ERROR_CHECK(rmt_del_channel(rx_channel));
 		vTaskDelete(rx_pid);
 		rx_pid = NULL;
 	}
-	ESP_ERROR_CHECK(rmt_disable(rx_channel));
-	ESP_ERROR_CHECK(rmt_del_channel(rx_channel));
 	rx_channel = NULL;
 }

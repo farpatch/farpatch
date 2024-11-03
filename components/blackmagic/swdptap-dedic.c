@@ -40,6 +40,10 @@
 #define BIT_IN()   (dedic_gpio_cpu_ll_read_in() & SWDIO_TMS_DEDIC_MASK)
 #define CLK_HIGH() dedic_gpio_cpu_ll_write_mask(SWCLK_DEDIC_MASK, SWCLK_DEDIC_MASK)
 #define CLK_LOW()  dedic_gpio_cpu_ll_write_mask(SWCLK_DEDIC_MASK, 0)
+// Experimental single-instruction approach. This is faster, but appears to have
+// signal integrity issues.
+// #define CLK_HIGH() RV_SET_CSR(CSR_GPIO_OUT_USER, SWCLK_DIR_DEDIC_MASK)
+// #define CLK_LOW()  RV_CLEAR_CSR(CSR_GPIO_OUT_USER, SWCLK_DIR_DEDIC_MASK)
 #define BIT_OUT(x) dedic_gpio_cpu_ll_write_mask(SWDIO_TMS_DEDIC_MASK, x)
 
 #undef SWDIO_MODE_FLOAT

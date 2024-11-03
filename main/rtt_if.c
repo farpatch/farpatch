@@ -350,5 +350,5 @@ void rtt_init(void)
 
 	// Start RTT task
 	rtt_enabled = true;
-	xTaskCreate(net_rtt_task, "rtt_rx", 5 * 1024, NULL, 1, NULL);
+	xTaskCreate(net_rtt_task, "rtt_rx", 5 * 1024, NULL, 4, NULL);
 }
