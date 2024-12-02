@@ -460,6 +460,7 @@ void app_main(void)
 	gpio_set_direction(CONFIG_UART_TX_DIR_GPIO, GPIO_MODE_OUTPUT);
 	gpio_set_level(CONFIG_UART_TX_DIR_GPIO, 0);
 #endif
+	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));
 
 #ifdef CONFIG_ESP_DEBUG_LOGS
 	uart_dbg_install();
