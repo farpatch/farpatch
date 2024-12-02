@@ -179,7 +179,7 @@ static esp_err_t cgi_system_status_header(httpd_req_t *req)
 		target_baud, swo_baud);
 	httpd_resp_sendstr_chunk(req, buffer);
 
-	snprintf(buffer, sizeof(buffer), "target voltage: %" PRIu32 " mV\n", voltages_mv[ADC_TARGET_VOLTAGE]);
+	snprintf(buffer, sizeof(buffer), "target voltage: %" PRIu32 " mV\n", voltages_mv[ADC_VREF_VOLTAGE]);
 	httpd_resp_sendstr_chunk(req, buffer);
 
 	snprintf(buffer, sizeof(buffer),

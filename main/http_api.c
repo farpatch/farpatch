@@ -332,7 +332,7 @@ static void append_voltages_to_output(httpd_req_t *req, const char *prefix, cons
 #if SOC_TEMP_SENSOR_SUPPORTED
 		"\"temperature\": %f,"
 #endif
-#if defined(CONFIG_VREF_ADC_CHANNEL) && CONFIG_VREF_ADC_CHANNEL >= 0
+#if defined(CONFIG_ADC_VREF_CHANNEL) && CONFIG_ADC_VREF_CHANNEL >= 0
 		"\"target\": %" PRIu32 ","
 #endif
 #if defined(CONFIG_ADC_USB_CHANNEL) && CONFIG_ADC_USB_CHANNEL >= 0
@@ -351,8 +351,8 @@ static void append_voltages_to_output(httpd_req_t *req, const char *prefix, cons
 #if SOC_TEMP_SENSOR_SUPPORTED
 		temperature,
 #endif
-#if defined(CONFIG_VREF_ADC_CHANNEL) && CONFIG_VREF_ADC_CHANNEL >= 0
-		voltages_mv[ADC_TARGET_VOLTAGE],
+#if defined(CONFIG_ADC_VREF_CHANNEL) && CONFIG_ADC_VREF_CHANNEL >= 0
+		voltages_mv[ADC_VREF_VOLTAGE],
 #endif
 #if defined(CONFIG_ADC_USB_CHANNEL) && CONFIG_ADC_USB_CHANNEL >= 0
 		voltages_mv[ADC_USB_VOLTAGE],

@@ -22,7 +22,7 @@ int32_t voltages_mv[ADC_VOLTAGE_COUNT] = {};
 
 static adc_channel_t channel_index[] = {
 	CONFIG_ADC_SYSTEM_CHANNEL,
-	CONFIG_VREF_ADC_CHANNEL,
+	CONFIG_ADC_VREF_CHANNEL,
 	CONFIG_ADC_USB_CHANNEL,
 	CONFIG_ADC_EXT_CHANNEL,
 	CONFIG_ADC_DEBUG_CHANNEL,
@@ -97,7 +97,7 @@ static bool adc_calibration_init(
 static bool adc_init(void)
 {
 	const adc_oneshot_unit_init_cfg_t init_config = {
-		.unit_id = CONFIG_VREF_ADC_UNIT,
+		.unit_id = CONFIG_ADC_UNIT,
 	};
 	ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, &adc_handle));
 	return true;
@@ -107,7 +107,7 @@ static void channel_init(enum AdcVoltageChannel voltage_index)
 {
 	adc_channel_t channel = channel_index[voltage_index];
 	ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, channel, &channel_config));
-	adc_calibration_init(CONFIG_VREF_ADC_UNIT, channel, ATTENUATION, &adc_cali_handle[voltage_index]);
+	adc_calibration_init(CONFIG_ADC_UNIT, channel, ATTENUATION, &adc_cali_handle[voltage_index]);
 }
 
 static void update_voltage(enum AdcVoltageChannel voltage_index)
@@ -138,7 +138,7 @@ void adc_task(void *ignored)
 {
 	(void)ignored;
 
-	if (CONFIG_VREF_ADC_UNIT == -1) {
+	if (CONFIG_ADC_UNIT == -1) {
 		ESP_LOGI(TAG, "adc is disabled");
 		vTaskDelete(NULL);
 		return;
@@ -159,8 +159,8 @@ void adc_task(void *ignored)
 	if (CONFIG_ADC_SYSTEM_CHANNEL >= 0) {
 		channel_init(ADC_SYSTEM_VOLTAGE);
 	}
-	if (CONFIG_VREF_ADC_CHANNEL >= 0) {
-		channel_init(ADC_TARGET_VOLTAGE);
+	if (CONFIG_ADC_VREF_CHANNEL >= 0) {
+		channel_init(ADC_VREF_VOLTAGE);
 	}
 	if (CONFIG_ADC_USB_CHANNEL >= 0) {
 		channel_init(ADC_USB_VOLTAGE);
@@ -176,8 +176,8 @@ void adc_task(void *ignored)
 		if (CONFIG_ADC_SYSTEM_CHANNEL >= 0) {
 			update_voltage(ADC_SYSTEM_VOLTAGE);
 		}
-		if (CONFIG_VREF_ADC_CHANNEL >= 0) {
-			update_voltage(ADC_TARGET_VOLTAGE);
+		if (CONFIG_ADC_VREF_CHANNEL >= 0) {
+			update_voltage(ADC_VREF_VOLTAGE);
 		}
 		if (CONFIG_ADC_USB_CHANNEL >= 0) {
 			update_voltage(ADC_USB_VOLTAGE);

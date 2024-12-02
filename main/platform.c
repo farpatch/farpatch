@@ -353,14 +353,14 @@ bool platform_nrst_get_val(void)
 uint32_t platform_target_voltage_sense(void)
 {
 	// Convert mV to dV (e.g. 3300 -> 33 for 3.3V)
-	return voltages_mv[ADC_TARGET_VOLTAGE] / 100;
+	return voltages_mv[ADC_VREF_VOLTAGE] / 100;
 }
 
 const char *platform_target_voltage(void)
 {
 	static char voltage[48];
 
-	int32_t adjusted_voltage = voltages_mv[ADC_TARGET_VOLTAGE];
+	int32_t adjusted_voltage = voltages_mv[ADC_VREF_VOLTAGE];
 	if (adjusted_voltage == -1) {
 		snprintf(voltage, sizeof(voltage) - 1, "unknown");
 		return voltage;
