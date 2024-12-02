@@ -379,4 +379,20 @@ void bmp_core_unlock();
 #define CONFIG_ADC_UNIT ADC_UNIT_1
 #endif
 
+#if !defined(CONFIG_LED_GPIO)
+#define CONFIG_LED_GPIO -1
+#endif
+
+#if !defined(CONFIG_LED2_GPIO)
+#define CONFIG_LED2_GPIO -1
+#endif
+
+#if !defined(CONFIG_LED3_GPIO)
+#define CONFIG_LED3_GPIO -1
+#endif
+
+#if !defined(CONFIG_LED4_GPIO)
+#define CONFIG_LED4_GPIO -1
+#endif
+
 #endif /* __BLACKMAGIC_GENERAL_H__ */
