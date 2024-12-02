@@ -25,6 +25,9 @@ menu "Farpatch Configuration"
         config FARPATCH_DVT6
             depends on IDF_TARGET_ESP32C6
             bool "Farpatch DVT6"
+        config FARPATCH_DVT7
+            depends on IDF_TARGET_ESP32C6
+            bool "Farpatch DVT7"
         config ESP32C3_MINI1
             depends on IDF_TARGET_ESP32C3
             bool "ESP32C3-MINI1"
