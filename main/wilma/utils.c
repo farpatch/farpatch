@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
+#include "murmur3.h"
 
 /// Externally generated dictionary of words used for generating
 /// the unique, per-device name.
@@ -13,10 +14,17 @@ static SemaphoreHandle_t WILMA_JSON_MUTEX = NULL;
 
 void wilma_unique_words(const char **name1, const char **name2)
 {
-    uint8_t chipid[8];
-    esp_read_mac(chipid, ESP_MAC_WIFI_SOFTAP);
-    uint32_t chip_hi_idx = chipid[5] | ((chipid[4] & 3) << 8);
-    uint32_t chip_lo_idx = (chipid[4] >> 2) | ((chipid[3] & 15) << 6);
+    // The MAC address is 6 bytes, but for devices that support IEEE802154
+    // it can be 8. Over-provision for this case.
+    uint8_t chip_id[8];
+    uint32_t chip_idx;
+    esp_read_mac(chip_id, ESP_MAC_WIFI_STA);
+    // Scramble the MAC address using MurmurHash3. This ensures that
+    // names are relatively unique, since otherwise the first word
+    // would tend to be the same due to the OUI.
+    MurmurHash3_x86_32(chip_id, 6, 0, &chip_idx);
+    uint32_t chip_hi_idx = chip_idx & 0x3FF;
+    uint32_t chip_lo_idx = (chip_idx >> 10) & 0x3FF;
     *name1 = word_list[chip_hi_idx];
     *name2 = word_list[chip_lo_idx];
 }

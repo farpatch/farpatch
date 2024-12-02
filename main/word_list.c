@@ -1,5 +1,5 @@
 // Word list originally taken from https://wcodes.org/wordlist
-const char *word_list[] = {
+const char *word_list[1024] = {
 	"cannon",
 	"east",
 	"fire",
