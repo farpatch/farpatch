@@ -9,6 +9,8 @@
 
 #include "murmur3.h"
 
+#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+
 //-----------------------------------------------------------------------------
 // Platform-specific functions and macros
 
@@ -312,4 +314,3 @@ void MurmurHash3_x64_128 ( const void * key, const int len,
 }
 
 //-----------------------------------------------------------------------------
-

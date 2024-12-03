@@ -71,9 +71,8 @@
 nvs_handle_t h_nvs_conf;
 
 // This value is used to spread out service startup,
-// which curiously seems to work around some bugs in
-// ESP-IDF.
-const uint32_t STARTUP_SERVICE_DELAY_MS = 10;
+// which is useful for keeping the power consumption low.
+const uint32_t STARTUP_SERVICE_DELAY_MS = 400;
 uint32_t target_delay_us = 0;
 
 #if defined(CONFIG_VSEL_PRESENT)
@@ -445,11 +444,23 @@ void app_main(void)
 	gpio_set_direction(CONFIG_LED2_GPIO, GPIO_MODE_OUTPUT);
 	gpio_set_level(CONFIG_LED2_GPIO, 1);
 #endif
+#if CONFIG_LED3_GPIO >= 0
+	gpio_reset_pin(CONFIG_LED3_GPIO);
+	gpio_set_direction(CONFIG_LED3_GPIO, GPIO_MODE_OUTPUT);
+	gpio_set_level(CONFIG_LED3_GPIO, 1);
+#endif
+#if CONFIG_LED4_GPIO >= 0
+	// Turn LED4 ("power LED") on
+	gpio_reset_pin(CONFIG_LED4_GPIO);
+	gpio_set_direction(CONFIG_LED4_GPIO, GPIO_MODE_OUTPUT);
+	gpio_set_level(CONFIG_LED4_GPIO, 0);
+#endif
 #if defined(CONFIG_UART_TX_DIR_GPIO) && CONFIG_UART_TX_DIR_GPIO >= 0
 	gpio_reset_pin(CONFIG_UART_TX_DIR_GPIO);
 	gpio_set_direction(CONFIG_UART_TX_DIR_GPIO, GPIO_MODE_OUTPUT);
 	gpio_set_level(CONFIG_UART_TX_DIR_GPIO, 0);
 #endif
+	vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVICE_DELAY_MS));
 
 #ifdef CONFIG_ESP_DEBUG_LOGS
 	uart_dbg_install();
