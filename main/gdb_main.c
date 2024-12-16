@@ -45,13 +45,21 @@ void bmp_core_unlock(void)
 }
 
 bool verify_magic(struct gdb_wifi_instance *bmp);
+
+gdb_packet_s *gdb_full_packet_buffer(void)
+{
+	void *ptr = (void *)pvTaskGetThreadLocalStoragePointer(NULL, GDB_TLS_INDEX);
+	struct gdb_wifi_instance *instance_ptr = ptr;
+	return &instance_ptr->gdb_packet;
+}
+
 char *gdb_packet_buffer(void)
 {
 	void *ptr = (void *)pvTaskGetThreadLocalStoragePointer(NULL, GDB_TLS_INDEX);
 	assert(ptr);
 	verify_magic(ptr);
 	struct gdb_wifi_instance *instance_ptr = ptr;
-	return instance_ptr->pbuf;
+	return instance_ptr->gdb_packet.data;
 }
 
 struct exception **get_innermost_exception(void)
@@ -110,8 +118,6 @@ static void IRAM_ATTR gdb_wifi_task(void *arg)
 
 	num_clients += 1;
 
-	char *pbuf = (char *)instance->rx_buf;
-
 	while (!gdb_is_free) {
 		platform_delay(10);
 	}
@@ -127,7 +133,7 @@ static void IRAM_ATTR gdb_wifi_task(void *arg)
 	while (true) {
 		TRY(EXCEPTION_ALL)
 		{
-			SET_IDLE_STATE(0);
+			SET_IDLE_STATE(false);
 			while (gdb_target_running && cur_target) {
 				gdb_poll_target();
 
@@ -144,13 +150,12 @@ static void IRAM_ATTR gdb_wifi_task(void *arg)
 					poll_rtt(cur_target);
 			}
 
-			SET_IDLE_STATE(1);
-			size_t size = gdb_getpacket(pbuf, GDB_PACKET_BUFFER_SIZE);
+			SET_IDLE_STATE(true);
+			const gdb_packet_s *const packet = gdb_packet_receive();
 			// If port closed and target detached, stay idle
-			if ((pbuf[0] != 0x04) || cur_target) {
-				SET_IDLE_STATE(0);
-			}
-			gdb_main(pbuf, sizeof(instance->rx_buf), size);
+			if (packet->data[0] != '\x04' || cur_target)
+				SET_IDLE_STATE(false);
+			gdb_main(packet);
 			// If the target changes, re-update the vectors.
 			if (cur_target != prev_target) {
 				uint32_t vectors_to_disable = 0
@@ -184,7 +189,7 @@ static void IRAM_ATTR gdb_wifi_task(void *arg)
 			gdb_wifi_destroy(instance);
 			return;
 		default:
-			gdb_putpacketz("EFF");
+			gdb_put_packet_error(0xffU);
 			target_list_free();
 			morse("TARGET LOST.", 1);
 		}

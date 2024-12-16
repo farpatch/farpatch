@@ -36,8 +36,10 @@ extern bool debug_bmp;
 void platform_buffer_flush(void);
 void platform_set_baud(uint32_t baud);
 
-#define SET_RUN_STATE(state)
-#define SET_IDLE_STATE(state)
+#define SET_RUN_STATE(state) \
+	do {                     \
+	} while (0)
+#define SET_IDLE_STATE(state)  gpio_set_level(CONFIG_LED4_GPIO, state)
 #define SET_ERROR_STATE(state) gpio_set_level(CONFIG_LED_GPIO, !state)
 
 #ifndef NO_LIBOPENCM3
@@ -78,10 +80,10 @@ void platform_set_baud(uint32_t baud);
 #define TDI_PIN CONFIG_TDI_GPIO
 #define TDO_PIN CONFIG_TDO_GPIO
 
-#define SWDIO_PIN CONFIG_TMS_SWDIO_GPIO
+#define SWDIO_PIN    CONFIG_TMS_SWDIO_GPIO
 #define SWDIO_IN_PIN CONFIG_TMS_SWDIO_GPIO
-#define SWCLK_PIN CONFIG_TCK_SWCLK_GPIO
-#define SRST_PIN  CONFIG_SRST_GPIO
+#define SWCLK_PIN    CONFIG_TCK_SWCLK_GPIO
+#define SRST_PIN     CONFIG_SRST_GPIO
 
 #define SWCLK_PORT 0
 #define SWDIO_PORT 0
@@ -148,14 +150,14 @@ void platform_set_baud(uint32_t baud);
 #define PLATFORM_IDENT CONFIG_IDF_TARGET
 
 #define PLATFORM_HAS_TRACESWO
-#define NUM_TRACE_PACKETS (128) /* This is an 8K buffer */
-#define SWO_ENCODING 3     /* 1 = Manchester, 2 = NRZ / async, 3 = Both */
-#define SWO_ENDPOINT CONFIG_SWO_TCP_PORT /* Dummy value -- not used */
+#define NUM_TRACE_PACKETS (128)               /* This is an 8K buffer */
+#define SWO_ENCODING      3                   /* 1 = Manchester, 2 = NRZ / async, 3 = Both */
+#define SWO_ENDPOINT      CONFIG_SWO_TCP_PORT /* Dummy value -- not used */
 
-#define TARGET_UART UART0
+#define TARGET_UART     UART0
 #define TARGET_UART_IDX 0
-#define SWO_UART UART1
-#define SWO_UART_IDX 1
+#define SWO_UART        UART1
+#define SWO_UART_IDX    1
 
 extern uint32_t target_delay_us;
 
