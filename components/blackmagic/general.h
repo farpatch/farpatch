@@ -22,6 +22,9 @@
 void bmp_core_lock();
 void bmp_core_unlock();
 
+// Ensure BMP uses our buffers for GDB packets
+#define EXTERNAL_PACKET_BUFFER
+
 #ifdef ENABLE_DEBUG
 #include "esp_log.h"
 

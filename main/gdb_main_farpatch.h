@@ -3,6 +3,7 @@
 
 #include <freertos/FreeRTOS.h>
 #include <gdb_main.h>
+#include <gdb_packet.h>
 
 #define EXCEPTION_NETWORK 0x40
 #define EXCEPTION_MUTEX   0x41
@@ -15,7 +16,7 @@ struct gdb_wifi_instance {
 	int sock;
 	uint8_t tx_buf[1028];
 	uint8_t rx_buf[1028];
-	char pbuf[GDB_PACKET_BUFFER_SIZE + 4];
+	struct gdb_packet gdb_packet;
 	uint16_t tx_bufsize;
 	uint16_t rx_bufsize;
 	uint16_t rx_bufpos;
