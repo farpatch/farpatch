@@ -39,8 +39,36 @@ void platform_set_baud(uint32_t baud);
 #define SET_RUN_STATE(state) \
 	do {                     \
 	} while (0)
-#define SET_IDLE_STATE(state)  gpio_set_level(CONFIG_LED4_GPIO, state)
-#define SET_ERROR_STATE(state) gpio_set_level(CONFIG_LED_GPIO, !state)
+
+#if CONFIG_LED4_GPIO != -1
+#define SET_IDLE_STATE(state)                         \
+	do {                                              \
+		static int existing_state = false;            \
+		if (existing_state != state) {                \
+			gpio_set_level(CONFIG_LED4_GPIO, !state); \
+		}                                             \
+		existing_state = state;                       \
+	} while (0)
+#else
+#define SET_IDLE_STATE(state) \
+	do {                      \
+	} while (0)
+#endif
+
+#if CONFIG_LED_GPIO != -1
+#define SET_ERROR_STATE(state)                       \
+	do {                                             \
+		static int existing_state = false;           \
+		if (existing_state != state) {               \
+			gpio_set_level(CONFIG_LED_GPIO, !state); \
+		}                                            \
+		existing_state = state;                      \
+	} while (0)
+#else
+#define SET_ERROR_STATE(state) \
+	do {                       \
+	} while (0)
+#endif
 
 #ifndef NO_LIBOPENCM3
 #define NO_LIBOPENCM3
