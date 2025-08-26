@@ -424,7 +424,7 @@ int vprintf_noop(const char *s, va_list va)
 	return 1;
 }
 
-extern void gdb_net_task();
+void gdb_net_task(void *arg);
 #ifdef CONFIG_RTT_ON_BOOT
 void rtt_monitor_task(void *params);
 #endif /* CONFIG_RTT_ON_BOOT */
