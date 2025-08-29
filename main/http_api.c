@@ -488,7 +488,7 @@ esp_err_t cgi_scan_swd(httpd_req_t *req)
 	bmp_core_lock();
 	TRY(EXCEPTION_ALL)
 	{
-		adiv5_swd_scan(0);
+		adiv5_swd_scan();
 	}
 	CATCH()
 	{
