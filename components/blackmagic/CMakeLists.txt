@@ -1,7 +1,13 @@
 cmake_minimum_required(VERSION 3.5)
 
 idf_component_register(
-    REQUIRES driver esp_driver_gpio esp_partition esp_wifi
+    REQUIRES
+		esp_driver_gpio
+		esp_driver_rmt
+		esp_driver_tsens
+		esp_driver_uart
+		esp_partition
+		esp_wifi
     SRC_DIRS "blackmagic/src/target"
              "blackmagic/src"
              "blackmagic/src/platforms/common"
